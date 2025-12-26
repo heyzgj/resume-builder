@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  /* Quiet Luxury Palette */
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #4a4a4a;
+  --ash: #8e8e93;
+  --faint-line: #e5e5ea;
+  --focus-ring: #000000;
+
+  /* Resume Specific Dimensions (A4/Letter agnostic base) */
+  --page-width: 210mm;
+  --page-height: 297mm;
+
+  /* Smart-Fit Variables (Dynamic) */
+  --scale-factor: 1;
+  --base-font-size: 10.5pt;
+  --line-height-body: 1.4;
+  --margin-x: 24mm;
+  --margin-y: 20mm;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Resume Preview Context - Isolates styles for the resume itself */
+.resume-preview {
+  color: var(--ink);
+  background: var(--paper);
+  width: var(--page-width);
+  min-height: var(--page-height);
+  padding: var(--margin-y) var(--margin-x);
+  font-size: calc(var(--base-font-size) * var(--scale-factor));
+  line-height: var(--line-height-body);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* Print Overrides - Critical for PDF Export */
+@media print {
+  @page {
+    margin: 0;
+    size: A4;
+  }
+
+  /* Hide everything except the resume */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the resume preview and its children */
+  .resume-preview,
+  .resume-preview * {
+    visibility: visible;
+  }
+
+  /* Reset transform and position the resume at top-left */
+  .resume-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide the wrapper div's transform */
+  [style*="transform"] {
+    transform: none !important;
+  }
+
+  /* Ensure proper font rendering in print */
+  body {
+    -webkit-font-smoothing: subpixel-antialiased;
+    background: white !important;
+  }
+
+  /* Hide non-printable elements */
+  .no-print,
+  header,
+  button,
+  [class*="toolbar"],
+  [class*="editor"] {
+    display: none !important;
+  }
+}
