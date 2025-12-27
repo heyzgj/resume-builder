@@ -8,7 +8,19 @@ import { ExperienceItem } from "@/lib/types";
 import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export const ExperienceForm = () => {
+interface ExperienceFormProps {
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
+}
+
+export const ExperienceForm: React.FC<ExperienceFormProps> = ({
+    onMoveUp,
+    onMoveDown,
+    canMoveUp = false,
+    canMoveDown = false
+}) => {
     const { data, updateExperience, addExperience, removeExperience, moveExperience, clearExperience, updateSectionTitle } = useResumeStore();
     const { experience, sectionTitles } = data;
 
@@ -24,6 +36,10 @@ export const ExperienceForm = () => {
             title={sectionTitles?.experience || "工作经历"}
             onTitleChange={(newTitle) => updateSectionTitle('experience', newTitle)}
             onDelete={clearExperience}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
         >
             <div className="space-y-6">
                 <AnimatePresence initial={false}>

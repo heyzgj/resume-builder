@@ -7,7 +7,19 @@ import { SkillCategory } from "@/lib/types";
 import { Trash2, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export const SkillsForm = () => {
+interface SkillsFormProps {
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
+}
+
+export const SkillsForm: React.FC<SkillsFormProps> = ({
+    onMoveUp,
+    onMoveDown,
+    canMoveUp = false,
+    canMoveDown = false
+}) => {
     const { data, updateSectionTitle, updateSkillCategory, addSkillCategory, removeSkillCategory, clearSkills } = useResumeStore();
     const { skills, sectionTitles } = data;
 
@@ -32,6 +44,10 @@ export const SkillsForm = () => {
             title={sectionTitles?.skills || "技能与兴趣"}
             onTitleChange={(newTitle) => updateSectionTitle('skills', newTitle)}
             onDelete={clearSkills}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
         >
             <div className="space-y-4">
                 <AnimatePresence initial={false}>

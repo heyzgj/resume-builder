@@ -33,8 +33,22 @@ export type SkillCategory = {
   items: string[];
 };
 
-// Reusing ExperienceItem for dynamic lists is okay, but generally custom sections might be simpler text.
-// For premium MVP, we will stick to ExperienceItem structure (Title, Subtitle, Date, Desc) as it's versatile.
+// Honor/Award item for the honors section
+export type HonorItem = {
+  id: string;
+  title: string;      // 奖项名称
+  issuer: string;     // 颁发机构
+  date: string;       // 日期
+};
+
+// Section template types
+export type SectionType =
+  | 'summary'     // 个人总结 - single text block
+  | 'skills'      // 专业技能 - category + items (reuses existing)
+  | 'education'   // 教育经历 - (reuses existing)
+  | 'honors'      // 荣誉奖项 - title + issuer + date
+  | 'portfolio'   // 作品集 - similar to experience
+  | 'custom';     // 自定义 - similar to experience
 
 export type ResumeData = {
   basics: {
@@ -52,17 +66,22 @@ export type ResumeData = {
     skills: string;
     [key: string]: string; // For custom sections
   };
+  // Section order: array of section keys ('experience', 'education', 'skills', or custom section id)
+  sectionOrder: string[];
   experience: ExperienceItem[];
   education: EducationItem[];
   skills: SkillCategory[];
   languages?: { language: string; proficiency: string }[];
   projects?: ExperienceItem[];
 
-  // Custom Sections
+  // Custom Sections (now with type for different templates)
   customSections: {
     id: string;
+    type: SectionType;
     title: string;
-    items: ExperienceItem[]; // Reusing standard item structure
+    content?: string;           // For summary type
+    items?: ExperienceItem[];   // For portfolio/custom types
+    honors?: HonorItem[];       // For honors type
     visible: boolean;
   }[];
 };

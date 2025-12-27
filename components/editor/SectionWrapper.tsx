@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Trash2, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, MoreHorizontal } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { clsx } from "clsx";
 
@@ -12,6 +12,10 @@ interface SectionWrapperProps {
     onTitleChange?: (newTitle: string) => void;
     onDelete?: () => void;
     canDelete?: boolean;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
 }
 
 export const SectionWrapper: React.FC<SectionWrapperProps> = ({
@@ -20,7 +24,11 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
     defaultOpen = false,
     onTitleChange,
     onDelete,
-    canDelete = true
+    canDelete = true,
+    onMoveUp,
+    onMoveDown,
+    canMoveUp = false,
+    canMoveDown = false
 }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const [isEditing, setIsEditing] = useState(false);
@@ -54,7 +62,8 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
                 "relative rounded-xl bg-[var(--card-surface)] transition-all duration-200",
                 "shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]",
                 "hover:-translate-y-0.5",
-                "group"
+                "group",
+                showMenu && "z-40"  // Raise z-index when menu is open
             )}
         >
             {/* Left Accent Line */}
@@ -73,9 +82,9 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
                 className="w-full flex items-center justify-between py-4 px-5 pl-4 hover:bg-[var(--bg-warm)] transition-colors cursor-pointer rounded-t-xl"
             >
 
-                <div onClick={(e) => e.stopPropagation()} className="flex-1">
+                <div className="flex-1">
                     {isEditing ? (
-                        <form onSubmit={handleTitleSave} className="flex items-center gap-2">
+                        <form onSubmit={handleTitleSave} className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <input
                                 type="text"
                                 value={tempTitle}
@@ -90,7 +99,8 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
                             <span className="text-sm font-semibold text-[var(--text-secondary)] tracking-tight">{title}</span>
                             {onTitleChange && (
                                 <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         setTempTitle(title);
                                         setIsEditing(true);
                                     }}
@@ -105,7 +115,7 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
 
                 <div className="flex items-center gap-2">
                     {/* Block Menu */}
-                    {canDelete && onDelete && (
+                    {(canDelete && onDelete) || onMoveUp || onMoveDown ? (
                         <div ref={menuRef} className="relative" onClick={(e) => e.stopPropagation()}>
                             <button
                                 onClick={() => setShowMenu(!showMenu)}
@@ -123,21 +133,49 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
                                         transition={{ duration: 0.15 }}
                                         className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-[var(--border-soft)] py-1 min-w-[140px] z-50"
                                     >
-                                        <button
-                                            onClick={() => {
-                                                onDelete();
-                                                setShowMenu(false);
-                                            }}
-                                            className="w-full px-3 py-2 text-left text-xs font-medium text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                                        >
-                                            <Trash2 size={12} />
-                                            删除模块
-                                        </button>
+                                        {onMoveUp && (
+                                            <button
+                                                onClick={() => {
+                                                    onMoveUp();
+                                                    setShowMenu(false);
+                                                }}
+                                                disabled={!canMoveUp}
+                                                className="w-full px-3 py-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-warm)] flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <ChevronUp size={12} />
+                                                上移
+                                            </button>
+                                        )}
+                                        {onMoveDown && (
+                                            <button
+                                                onClick={() => {
+                                                    onMoveDown();
+                                                    setShowMenu(false);
+                                                }}
+                                                disabled={!canMoveDown}
+                                                className="w-full px-3 py-2 text-left text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-warm)] flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <ChevronDown size={12} />
+                                                下移
+                                            </button>
+                                        )}
+                                        {canDelete && onDelete && (
+                                            <button
+                                                onClick={() => {
+                                                    onDelete();
+                                                    setShowMenu(false);
+                                                }}
+                                                className="w-full px-3 py-2 text-left text-xs font-medium text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                                            >
+                                                <Trash2 size={12} />
+                                                删除模块
+                                            </button>
+                                        )}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
                         </div>
-                    )}
+                    ) : null}
 
                     <ChevronDown
                         size={16}

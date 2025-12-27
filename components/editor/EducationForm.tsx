@@ -7,7 +7,19 @@ import { EducationItem } from "@/lib/types";
 import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export const EducationForm = () => {
+interface EducationFormProps {
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
+    canMoveUp?: boolean;
+    canMoveDown?: boolean;
+}
+
+export const EducationForm: React.FC<EducationFormProps> = ({
+    onMoveUp,
+    onMoveDown,
+    canMoveUp = false,
+    canMoveDown = false
+}) => {
     const { data, updateEducation, addEducation, removeEducation, moveEducation, clearEducation, updateSectionTitle } = useResumeStore();
     const { education, sectionTitles } = data;
 
@@ -23,6 +35,10 @@ export const EducationForm = () => {
             title={sectionTitles?.education || "教育背景"}
             onTitleChange={(newTitle) => updateSectionTitle('education', newTitle)}
             onDelete={clearEducation}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
         >
             <div className="space-y-6">
                 <AnimatePresence initial={false}>

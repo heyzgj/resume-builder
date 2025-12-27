@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ResumeData, DesignSettings, ExperienceItem, EducationItem, SkillCategory } from './types';
+import { ResumeData, DesignSettings, ExperienceItem, EducationItem, SkillCategory, SectionType, HonorItem } from './types';
 
 interface ResumeState {
     data: ResumeData;
@@ -29,10 +29,17 @@ interface ResumeState {
 
     // Customization Actions
     updateSectionTitle: (key: string, title: string) => void;
-    addCustomSection: () => void;
+    moveSection: (sectionKey: string, direction: 'up' | 'down') => void;
+    addCustomSection: (type: SectionType, title: string) => void;
     removeCustomSection: (sectionId: string) => void;
     updateCustomSectionTitle: (sectionId: string, title: string) => void;
+    updateCustomSectionContent: (sectionId: string, content: string) => void;
     updateCustomSectionItem: (sectionId: string, item: ExperienceItem) => void;
+    addCustomSectionItem: (sectionId: string) => void;
+    removeCustomSectionItem: (sectionId: string, itemId: string) => void;
+    updateCustomSectionHonor: (sectionId: string, honor: HonorItem) => void;
+    addCustomSectionHonor: (sectionId: string) => void;
+    removeCustomSectionHonor: (sectionId: string, honorId: string) => void;
     switchToLanguageDefaults: (lang: 'en' | 'zh') => void;
 }
 
@@ -52,6 +59,7 @@ const initialDataEN: ResumeData = {
         education: "Education",
         skills: "Skills & Interests"
     },
+    sectionOrder: ['experience', 'education', 'skills'],
     customSections: [],
     experience: [
         {
@@ -107,6 +115,7 @@ const initialDataZH: ResumeData = {
         education: "教育背景",
         skills: "技能与兴趣"
     },
+    sectionOrder: ['experience', 'education', 'skills'],
     customSections: [],
     experience: [
         {
@@ -280,6 +289,20 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 })),
 
+            moveSection: (sectionKey, direction) =>
+                set((state) => {
+                    const order = [...(state.data.sectionOrder || ['experience', 'education', 'skills'])];
+                    const index = order.indexOf(sectionKey);
+                    if (index === -1) return state;
+
+                    const newIndex = direction === 'up' ? index - 1 : index + 1;
+                    if (newIndex < 0 || newIndex >= order.length) return state;
+
+                    // Swap sections
+                    [order[index], order[newIndex]] = [order[newIndex], order[index]];
+                    return { data: { ...state.data, sectionOrder: order } };
+                }),
+
             // Skills CRUD
             updateSkillCategory: (updatedItem) =>
                 set((state) => ({
@@ -339,17 +362,21 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 })),
 
-            addCustomSection: () => {
+            addCustomSection: (type, title) => {
                 const id = crypto.randomUUID();
                 set((state) => ({
                     data: {
                         ...state.data,
+                        sectionOrder: [...(state.data.sectionOrder || ['experience', 'education', 'skills']), id],
                         customSections: [
                             ...state.data.customSections,
                             {
                                 id,
-                                title: "自定义模块",
-                                items: [],
+                                type,
+                                title,
+                                content: type === 'summary' ? '' : undefined,
+                                items: (type === 'portfolio' || type === 'custom') ? [] : undefined,
+                                honors: type === 'honors' ? [] : undefined,
                                 visible: true
                             }
                         ]
@@ -361,6 +388,7 @@ export const useResumeStore = create<ResumeState>()(
                 set((state) => ({
                     data: {
                         ...state.data,
+                        sectionOrder: state.data.sectionOrder.filter(key => key !== sectionId),
                         customSections: state.data.customSections.filter(section => section.id !== sectionId)
                     }
                 })),
@@ -377,13 +405,111 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 })),
 
+            updateCustomSectionContent: (sectionId, content) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? { ...section, content }
+                                : section
+                        )
+                    }
+                })),
+
             updateCustomSectionItem: (sectionId, updatedItem) =>
                 set((state) => ({
                     data: {
                         ...state.data,
                         customSections: state.data.customSections.map(section =>
                             section.id === sectionId
-                                ? { ...section, items: section.items.map(item => item.id === updatedItem.id ? updatedItem : item) }
+                                ? { ...section, items: (section.items || []).map(item => item.id === updatedItem.id ? updatedItem : item) }
+                                : section
+                        )
+                    }
+                })),
+
+            addCustomSectionItem: (sectionId) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? {
+                                    ...section,
+                                    items: [
+                                        ...(section.items || []),
+                                        {
+                                            id: crypto.randomUUID(),
+                                            company: "",
+                                            role: "",
+                                            location: "",
+                                            startDate: "",
+                                            endDate: "",
+                                            description: "",
+                                            visible: true
+                                        }
+                                    ]
+                                }
+                                : section
+                        )
+                    }
+                })),
+
+            removeCustomSectionItem: (sectionId, itemId) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? { ...section, items: (section.items || []).filter(item => item.id !== itemId) }
+                                : section
+                        )
+                    }
+                })),
+
+            updateCustomSectionHonor: (sectionId, updatedHonor) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? { ...section, honors: (section.honors || []).map(honor => honor.id === updatedHonor.id ? updatedHonor : honor) }
+                                : section
+                        )
+                    }
+                })),
+
+            addCustomSectionHonor: (sectionId) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? {
+                                    ...section,
+                                    honors: [
+                                        ...(section.honors || []),
+                                        {
+                                            id: crypto.randomUUID(),
+                                            title: "",
+                                            issuer: "",
+                                            date: ""
+                                        }
+                                    ]
+                                }
+                                : section
+                        )
+                    }
+                })),
+
+            removeCustomSectionHonor: (sectionId, honorId) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? { ...section, honors: (section.honors || []).filter(honor => honor.id !== honorId) }
                                 : section
                         )
                     }

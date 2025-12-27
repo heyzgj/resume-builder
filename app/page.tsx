@@ -8,16 +8,19 @@ import { ExperienceForm } from "@/components/editor/ExperienceForm";
 import { EducationForm } from "@/components/editor/EducationForm";
 import { SkillsForm } from "@/components/editor/SkillsForm";
 import { CustomSectionForm } from "@/components/editor/CustomSectionForm";
+import { SectionPickerModal } from "@/components/editor/SectionPickerModal";
 import { ResumePreview } from "@/components/preview/ResumePreview";
 import { ClientOnly } from "@/components/ClientOnly";
 import { useResumeStore } from "@/lib/store";
+import { SectionType } from "@/lib/types";
 
 export default function Home() {
   const previewRef = useRef<HTMLDivElement>(null);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showSectionPicker, setShowSectionPicker] = useState(false);
 
-  const { settings, updateSettings, addCustomSection, switchToLanguageDefaults, data } = useResumeStore();
+  const { settings, updateSettings, addCustomSection, moveSection, switchToLanguageDefaults, data } = useResumeStore();
 
   const handleSmartFit = () => {
     updateSettings({ smartFitEnabled: !settings.smartFitEnabled });
@@ -81,21 +84,40 @@ export default function Home() {
           <ClientOnly>
             <div className="space-y-5 pb-24">
               <BasicsForm />
-              <ExperienceForm />
-              <EducationForm />
-              <SkillsForm />
 
-              {/* Render Custom Sections */}
-              {data.customSections.map((section) => (
-                <CustomSectionForm key={section.id} sectionId={section.id} />
-              ))}
+              {/* Render sections based on sectionOrder */}
+              {(data.sectionOrder || ['experience', 'education', 'skills']).map((sectionKey, index, arr) => {
+                const isFirst = index === 0;
+                const isLast = index === arr.length - 1;
+
+                // Helper for move props
+                const getMoveProps = () => ({
+                  onMoveUp: () => moveSection(sectionKey, 'up'),
+                  onMoveDown: () => moveSection(sectionKey, 'down'),
+                  canMoveUp: !isFirst,
+                  canMoveDown: !isLast
+                });
+
+                if (sectionKey === 'experience') {
+                  return <ExperienceForm key={sectionKey} {...getMoveProps()} />;
+                }
+                if (sectionKey === 'education') {
+                  return <EducationForm key={sectionKey} {...getMoveProps()} />;
+                }
+                if (sectionKey === 'skills') {
+                  return <SkillsForm key={sectionKey} {...getMoveProps()} />;
+                }
+                // Custom section
+                const customSection = data.customSections.find(s => s.id === sectionKey);
+                if (customSection) {
+                  return <CustomSectionForm key={sectionKey} sectionId={sectionKey} {...getMoveProps()} />;
+                }
+                return null;
+              })}
 
               {/* Add Custom Section Button */}
               <button
-                onClick={() => {
-                  console.log("Adding custom section...");
-                  addCustomSection();
-                }}
+                onClick={() => setShowSectionPicker(true)}
                 className="w-full py-3 border-2 border-dashed border-[var(--border-soft)] rounded-xl text-[var(--text-muted)] text-xs font-semibold tracking-wide hover:bg-[var(--bg-warm)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <Plus size={14} /> 添加模块
@@ -233,6 +255,13 @@ export default function Home() {
           onClick={() => setTemplateMenuOpen(false)}
         />
       )}
+
+      {/* Section Picker Modal - placed at root level for proper z-index stacking */}
+      <SectionPickerModal
+        isOpen={showSectionPicker}
+        onClose={() => setShowSectionPicker(false)}
+        onSelect={(type: SectionType, title: string) => addCustomSection(type, title)}
+      />
     </main>
   );
 }
