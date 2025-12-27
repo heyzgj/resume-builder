@@ -7,6 +7,10 @@ interface ResumeState {
     data: ResumeData;
     settings: DesignSettings;
 
+    // Data Loading (for DB integration)
+    setData: (data: ResumeData) => void;
+    setSettings: (settings: DesignSettings) => void;
+
     // Actions
     updateBasics: (basics: Partial<ResumeData['basics']>) => void;
     updateExperience: (item: ExperienceItem) => void;
@@ -171,6 +175,10 @@ export const useResumeStore = create<ResumeState>()(
         (set) => ({
             data: initialData,
             settings: initialSettings,
+
+            // Data Loading
+            setData: (newData) => set({ data: newData }),
+            setSettings: (newSettings) => set({ settings: newSettings }),
 
             updateBasics: (updates) =>
                 set((state) => ({ data: { ...state.data, basics: { ...state.data.basics, ...updates } } })),
