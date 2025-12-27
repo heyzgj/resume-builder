@@ -3,20 +3,35 @@
 import { useResumeStore } from "@/lib/store";
 import { Input } from "@/components/ui/Input";
 import { SectionWrapper } from "./SectionWrapper";
+import { SkillCategory } from "@/lib/types";
 import { Trash2, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const SkillsForm = () => {
-    const { data, updateSectionTitle } = useResumeStore();
+    const { data, updateSectionTitle, updateSkillCategory, addSkillCategory, removeSkillCategory, clearSkills } = useResumeStore();
     const { skills, sectionTitles } = data;
 
-    // For now, we'll just display skills. Full CRUD can be added later.
-    // This is a read-only display of skills categories.
+    const handleNameChange = (id: string, name: string) => {
+        const category = skills.find((c) => c.id === id);
+        if (category) {
+            updateSkillCategory({ ...category, name });
+        }
+    };
+
+    const handleItemsChange = (id: string, itemsString: string) => {
+        const category = skills.find((c) => c.id === id);
+        if (category) {
+            // Split by Chinese/English comma and trim whitespace
+            const items = itemsString.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
+            updateSkillCategory({ ...category, items });
+        }
+    };
 
     return (
         <SectionWrapper
-            title={sectionTitles?.skills || "Skills & Interests"}
+            title={sectionTitles?.skills || "技能与兴趣"}
             onTitleChange={(newTitle) => updateSectionTitle('skills', newTitle)}
+            onDelete={clearSkills}
         >
             <div className="space-y-4">
                 <AnimatePresence initial={false}>
@@ -26,26 +41,36 @@ export const SkillsForm = () => {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="group relative border border-neutral-100 rounded-lg p-4 bg-neutral-50/30 hover:bg-neutral-50 hover:shadow-sm transition-all"
+                            className="group relative rounded-lg p-4 bg-[var(--bg-warm)] hover:bg-[var(--bg-warm-subtle)] border border-[var(--border-softer)] hover:border-[var(--border-soft)] transition-all duration-200"
                         >
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <button
+                                    onClick={() => removeSkillCategory(category.id)}
+                                    className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                    title="删除此类别"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+
                             <div className="space-y-3">
                                 <Input
-                                    label="Category Name"
+                                    label="类别名称"
                                     value={category.name}
-                                    onChange={() => { }}
-                                    placeholder="e.g., Technical, Languages"
-                                    disabled
+                                    onChange={(e) => handleNameChange(category.id, e.target.value)}
+                                    placeholder="如：专业技能、语言能力"
                                 />
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
-                                        Skills (comma-separated)
+                                    <label className="text-[11px] font-medium text-[var(--text-muted)] tracking-wide">
+                                        技能列表
+                                        <span className="ml-2 text-[10px] text-[var(--text-placeholder)]">用逗号分隔</span>
                                     </label>
                                     <input
                                         type="text"
-                                        className="w-full bg-white border border-neutral-200 rounded-md p-3 text-xs font-medium text-neutral-800 focus:outline-none focus:border-neutral-900 transition-colors"
-                                        value={category.items.join(", ")}
-                                        disabled
-                                        placeholder="Python, Excel, Bloomberg..."
+                                        className="w-full bg-[var(--card-surface)] border border-[var(--border-soft)] rounded-lg p-3 text-xs font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-subtle)] transition-all duration-200"
+                                        value={category.items.join("，")}
+                                        onChange={(e) => handleItemsChange(category.id, e.target.value)}
+                                        placeholder="Python，Excel，Bloomberg..."
                                     />
                                 </div>
                             </div>
@@ -53,12 +78,14 @@ export const SkillsForm = () => {
                     ))}
                 </AnimatePresence>
 
-                {skills.length === 0 && (
-                    <div className="text-center py-6 text-neutral-400 text-xs">
-                        No skills added yet. Edit skills in the store or add them via custom section.
-                    </div>
-                )}
+                <button
+                    onClick={addSkillCategory}
+                    className="w-full py-3 border-2 border-dashed border-[var(--border-soft)] rounded-xl text-[var(--text-muted)] text-xs font-semibold tracking-wide hover:bg-[var(--bg-warm)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                    <Plus size={14} /> 添加技能类别
+                </button>
             </div>
         </SectionWrapper>
     );
 };
+

@@ -4,11 +4,11 @@ import { useResumeStore } from "@/lib/store";
 import { Input } from "@/components/ui/Input";
 import { SectionWrapper } from "./SectionWrapper";
 import { EducationItem } from "@/lib/types";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const EducationForm = () => {
-    const { data, updateEducation, addEducation, removeEducation, updateSectionTitle } = useResumeStore();
+    const { data, updateEducation, addEducation, removeEducation, moveEducation, clearEducation, updateSectionTitle } = useResumeStore();
     const { education, sectionTitles } = data;
 
     const handleChange = (id: string, field: keyof EducationItem, value: any) => {
@@ -20,23 +20,41 @@ export const EducationForm = () => {
 
     return (
         <SectionWrapper
-            title={sectionTitles?.education || "Education"}
+            title={sectionTitles?.education || "教育背景"}
             onTitleChange={(newTitle) => updateSectionTitle('education', newTitle)}
+            onDelete={clearEducation}
         >
             <div className="space-y-6">
                 <AnimatePresence initial={false}>
-                    {education.map((item) => (
+                    {education.map((item, index) => (
                         <motion.div
                             key={item.id}
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="group relative border border-neutral-100 rounded-lg p-5 bg-neutral-50/30 hover:bg-neutral-50 hover:shadow-sm transition-all"
+                            className="group relative rounded-lg p-5 bg-[var(--bg-warm)] hover:bg-[var(--bg-warm-subtle)] border border-[var(--border-softer)] hover:border-[var(--border-soft)] transition-all duration-200"
                         >
-                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <button
+                                    onClick={() => moveEducation(item.id, 'up')}
+                                    disabled={index === 0}
+                                    className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-subtle)] rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="上移"
+                                >
+                                    <ChevronUp size={14} />
+                                </button>
+                                <button
+                                    onClick={() => moveEducation(item.id, 'down')}
+                                    disabled={index === education.length - 1}
+                                    className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-subtle)] rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="下移"
+                                >
+                                    <ChevronDown size={14} />
+                                </button>
                                 <button
                                     onClick={() => removeEducation(item.id)}
-                                    className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                    className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                    title="删除此教育经历"
                                 >
                                     <Trash2 size={14} />
                                 </button>
@@ -44,40 +62,40 @@ export const EducationForm = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Input
-                                    label="School"
+                                    label="学校名称"
                                     value={item.school}
                                     onChange={(e) => handleChange(item.id, "school", e.target.value)}
-                                    placeholder="University Name"
+                                    placeholder="如：清华大学"
                                 />
                                 <Input
-                                    label="Degree"
+                                    label="学位 / 专业"
                                     value={item.degree}
                                     onChange={(e) => handleChange(item.id, "degree", e.target.value)}
-                                    placeholder="Degree, Major"
+                                    placeholder="如：金融学学士"
                                 />
                                 <Input
-                                    label="Start Date"
+                                    label="开始日期"
                                     value={item.startDate}
                                     onChange={(e) => handleChange(item.id, "startDate", e.target.value)}
-                                    placeholder="YYYY-MM"
+                                    placeholder="2019.09"
                                 />
                                 <Input
-                                    label="End Date"
+                                    label="结束日期"
                                     value={item.endDate}
                                     onChange={(e) => handleChange(item.id, "endDate", e.target.value)}
-                                    placeholder="YYYY-MM"
+                                    placeholder="2023.06"
                                 />
                                 <Input
-                                    label="Location"
+                                    label="所在城市"
                                     value={item.location}
                                     onChange={(e) => handleChange(item.id, "location", e.target.value)}
-                                    placeholder="City, State"
+                                    placeholder="北京"
                                 />
                                 <Input
-                                    label="GPA / Honors"
+                                    label="GPA / 荣誉"
                                     value={item.gpa || ""}
                                     onChange={(e) => handleChange(item.id, "gpa", e.target.value)}
-                                    placeholder="e.g. 3.9/4.0"
+                                    placeholder="如：GPA 3.8/4.0，专业前5%"
                                 />
                             </div>
                         </motion.div>
@@ -86,11 +104,12 @@ export const EducationForm = () => {
 
                 <button
                     onClick={addEducation}
-                    className="w-full py-3 border border-dashed border-neutral-300 rounded-lg text-neutral-500 text-xs font-bold uppercase tracking-widest hover:bg-neutral-50 hover:border-neutral-400 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-3 border-2 border-dashed border-[var(--border-soft)] rounded-xl text-[var(--text-muted)] text-xs font-semibold tracking-wide hover:bg-[var(--bg-warm)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                    <Plus size={14} /> Add Education
+                    <Plus size={14} /> 添加教育经历
                 </button>
             </div>
         </SectionWrapper>
     );
 };
+

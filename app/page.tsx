@@ -2,20 +2,20 @@
 
 import { useRef, useState } from "react";
 import { clsx } from "clsx";
-import { PanelLeft, Settings, Printer, Sparkles, ChevronDown, Layout, Plus, Globe, Check } from "lucide-react";
+import { PanelLeft, Settings, Download, Sparkles, ChevronDown, Layout, Plus, Globe, Check, Loader2 } from "lucide-react";
 import { BasicsForm } from "@/components/editor/BasicsForm";
 import { ExperienceForm } from "@/components/editor/ExperienceForm";
 import { EducationForm } from "@/components/editor/EducationForm";
 import { SkillsForm } from "@/components/editor/SkillsForm";
+import { CustomSectionForm } from "@/components/editor/CustomSectionForm";
 import { ResumePreview } from "@/components/preview/ResumePreview";
 import { ClientOnly } from "@/components/ClientOnly";
-import { useReactToPrint } from "react-to-print";
 import { useResumeStore } from "@/lib/store";
 
 export default function Home() {
   const previewRef = useRef<HTMLDivElement>(null);
-  const reactToPrintFn = useReactToPrint({ contentRef: previewRef });
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { settings, updateSettings, addCustomSection, switchToLanguageDefaults, data } = useResumeStore();
 
@@ -23,15 +23,54 @@ export default function Home() {
     updateSettings({ smartFitEnabled: !settings.smartFitEnabled });
   };
 
+  // Puppeteer-based PDF Export (Direct Download)
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+
+    try {
+      // Send resume data to API for server-side rendering
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resumeData: data,
+          language: settings.language,
+          filename: `${data.basics.name.replace(/\s+/g, '_')}_Resume.pdf`
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'PDF generation failed');
+      }
+
+      // Download the PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.basics.name.replace(/\s+/g, '_')}_Resume.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(`PDF导出失败: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <main className="flex h-screen w-full bg-[#f5f5f5] overflow-hidden">
+    <main className="flex h-screen w-full bg-[var(--bg-warm)] overflow-hidden">
 
       {/* LEFT: Editor Panel (40%) */}
-      <section className="w-[40%] min-w-[360px] h-full border-r border-neutral-200 flex flex-col bg-white z-10 shadow-sm">
-        <header className="h-14 border-b border-neutral-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+      <section className="w-[40%] min-w-[360px] h-full border-r border-[var(--border-soft)] flex flex-col bg-[var(--card-surface)] z-10 shadow-[var(--shadow-sm)]">
+        <header className="h-14 border-b border-[var(--border-softer)] flex items-center justify-between px-6 bg-white/90 backdrop-blur-sm sticky top-0 z-20">
           <div className="flex items-center gap-2 text-neutral-800 font-medium">
             <PanelLeft size={18} />
-            <span className="text-sm tracking-tight">Editor</span>
+            <span className="text-sm tracking-tight">编辑器</span>
           </div>
           <button className="p-2 hover:bg-neutral-100 rounded-md transition-colors text-neutral-500">
             <Settings size={18} />
@@ -48,12 +87,7 @@ export default function Home() {
 
               {/* Render Custom Sections */}
               {data.customSections.map((section) => (
-                <div key={section.id} className="border border-neutral-100 rounded-xl bg-white shadow-sm p-5">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4">
-                    {section.title}
-                  </h3>
-                  <p className="text-neutral-400 text-xs">Custom section content editing coming soon...</p>
-                </div>
+                <CustomSectionForm key={section.id} sectionId={section.id} />
               ))}
 
               {/* Add Custom Section Button */}
@@ -62,9 +96,9 @@ export default function Home() {
                   console.log("Adding custom section...");
                   addCustomSection();
                 }}
-                className="w-full py-3 border-2 border-dashed border-neutral-300 rounded-xl text-neutral-500 text-xs font-bold uppercase tracking-widest hover:bg-neutral-50 hover:border-neutral-400 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 border-2 border-dashed border-[var(--border-soft)] rounded-xl text-[var(--text-muted)] text-xs font-semibold tracking-wide hover:bg-[var(--bg-warm)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all duration-200 flex items-center justify-center gap-2"
               >
-                <Plus size={14} /> Add Custom Section
+                <Plus size={14} /> 添加模块
               </button>
             </div>
           </ClientOnly>
@@ -72,7 +106,7 @@ export default function Home() {
       </section>
 
       {/* RIGHT: Preview Panel (60%) */}
-      <section className="flex-1 h-full bg-[#e5e5e5] relative flex flex-col min-w-0">
+      <section className="flex-1 h-full bg-[var(--bg-warm-subtle)] relative flex flex-col min-w-0">
 
         {/* ===== CONSOLIDATED TOOLBAR ===== */}
         <div className="h-14 flex items-center justify-between px-5 bg-white border-b border-neutral-200 z-30 gap-4 flex-shrink-0">
@@ -155,22 +189,36 @@ export default function Home() {
 
           </div>
 
-          {/* RIGHT: Export */}
+          {/* RIGHT: Export - Direct Download */}
           <button
-            onClick={() => reactToPrintFn()}
-            className="px-4 py-2 text-[11px] font-semibold bg-neutral-900 text-white hover:bg-black rounded-lg transition-colors shadow-md flex items-center gap-2 flex-shrink-0"
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            className={clsx(
+              "px-4 py-2 text-[11px] font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2 flex-shrink-0",
+              isExporting
+                ? "bg-neutral-400 text-white cursor-wait"
+                : "bg-neutral-900 text-white hover:bg-black"
+            )}
           >
-            <Printer size={13} /> Export PDF
+            {isExporting ? (
+              <>
+                <Loader2 size={13} className="animate-spin" /> Exporting...
+              </>
+            ) : (
+              <>
+                <Download size={13} /> Download PDF
+              </>
+            )}
           </button>
         </div>
 
         {/* ===== PREVIEW AREA ===== */}
-        <div className="flex-1 overflow-auto flex justify-center bg-[#e0e0e0] py-6">
+        <div className="flex-1 overflow-auto flex justify-center bg-[var(--bg-warm-subtle)] py-6">
           <ClientOnly>
             <div
               ref={previewRef}
               className="shadow-2xl bg-white origin-top print:shadow-none print:transform-none"
-              style={{ transform: 'scale(0.9)', transformOrigin: 'top center' }}
+              style={{ transform: 'scale(1)', transformOrigin: 'top center' }}
             >
               <ResumePreview />
             </div>

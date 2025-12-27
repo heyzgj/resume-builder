@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ResumeData, DesignSettings, ExperienceItem, EducationItem } from './types';
+import { ResumeData, DesignSettings, ExperienceItem, EducationItem, SkillCategory } from './types';
 
 interface ResumeState {
     data: ResumeData;
@@ -12,14 +12,26 @@ interface ResumeState {
     updateExperience: (item: ExperienceItem) => void;
     addExperience: () => void;
     removeExperience: (id: string) => void;
+    moveExperience: (id: string, direction: 'up' | 'down') => void;
+    clearExperience: () => void;
     updateEducation: (item: EducationItem) => void;
     addEducation: () => void;
     removeEducation: (id: string) => void;
+    moveEducation: (id: string, direction: 'up' | 'down') => void;
+    clearEducation: () => void;
     updateSettings: (settings: Partial<DesignSettings>) => void;
+
+    // Skills Actions
+    updateSkillCategory: (item: SkillCategory) => void;
+    addSkillCategory: () => void;
+    removeSkillCategory: (id: string) => void;
+    clearSkills: () => void;
 
     // Customization Actions
     updateSectionTitle: (key: string, title: string) => void;
     addCustomSection: () => void;
+    removeCustomSection: (sectionId: string) => void;
+    updateCustomSectionTitle: (sectionId: string, title: string) => void;
     updateCustomSectionItem: (sectionId: string, item: ExperienceItem) => void;
     switchToLanguageDefaults: (lang: 'en' | 'zh') => void;
 }
@@ -192,6 +204,20 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 })),
 
+            moveExperience: (id, direction) =>
+                set((state) => {
+                    const items = [...state.data.experience];
+                    const index = items.findIndex(item => item.id === id);
+                    if (index === -1) return state;
+
+                    const newIndex = direction === 'up' ? index - 1 : index + 1;
+                    if (newIndex < 0 || newIndex >= items.length) return state;
+
+                    // Swap items
+                    [items[index], items[newIndex]] = [items[newIndex], items[index]];
+                    return { data: { ...state.data, experience: items } };
+                }),
+
             updateEducation: (updatedItem) =>
                 set((state) => ({
                     data: {
@@ -229,6 +255,20 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 })),
 
+            moveEducation: (id, direction) =>
+                set((state) => {
+                    const items = [...state.data.education];
+                    const index = items.findIndex(item => item.id === id);
+                    if (index === -1) return state;
+
+                    const newIndex = direction === 'up' ? index - 1 : index + 1;
+                    if (newIndex < 0 || newIndex >= items.length) return state;
+
+                    // Swap items
+                    [items[index], items[newIndex]] = [items[newIndex], items[index]];
+                    return { data: { ...state.data, education: items } };
+                }),
+
             updateSettings: (updates) =>
                 set((state) => ({ settings: { ...state.settings, ...updates } })),
 
@@ -237,6 +277,65 @@ export const useResumeStore = create<ResumeState>()(
                     data: {
                         ...state.data,
                         sectionTitles: { ...state.data.sectionTitles, [key]: title }
+                    }
+                })),
+
+            // Skills CRUD
+            updateSkillCategory: (updatedItem) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        skills: state.data.skills.map((item) =>
+                            item.id === updatedItem.id ? updatedItem : item
+                        )
+                    }
+                })),
+
+            addSkillCategory: () =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        skills: [
+                            ...state.data.skills,
+                            {
+                                id: crypto.randomUUID(),
+                                name: "新类别",
+                                items: []
+                            }
+                        ]
+                    }
+                })),
+
+            removeSkillCategory: (id) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        skills: state.data.skills.filter((item) => item.id !== id)
+                    }
+                })),
+
+            // Section-level clear actions
+            clearExperience: () =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        experience: []
+                    }
+                })),
+
+            clearEducation: () =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        education: []
+                    }
+                })),
+
+            clearSkills: () =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        skills: []
                     }
                 })),
 
@@ -249,7 +348,7 @@ export const useResumeStore = create<ResumeState>()(
                             ...state.data.customSections,
                             {
                                 id,
-                                title: "Custom Section",
+                                title: "自定义模块",
                                 items: [],
                                 visible: true
                             }
@@ -257,6 +356,26 @@ export const useResumeStore = create<ResumeState>()(
                     }
                 }));
             },
+
+            removeCustomSection: (sectionId) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.filter(section => section.id !== sectionId)
+                    }
+                })),
+
+            updateCustomSectionTitle: (sectionId, title) =>
+                set((state) => ({
+                    data: {
+                        ...state.data,
+                        customSections: state.data.customSections.map(section =>
+                            section.id === sectionId
+                                ? { ...section, title }
+                                : section
+                        )
+                    }
+                })),
 
             updateCustomSectionItem: (sectionId, updatedItem) =>
                 set((state) => ({

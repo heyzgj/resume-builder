@@ -36,7 +36,7 @@ export default function RootLayout({
         inter.variable,
         merriweather.variable,
         notoSerifSC.variable,
-        "bg-neutral-50 text-neutral-900 font-sans h-screen overflow-hidden antialiased selection:bg-neutral-200"
+        "bg-[#faf9f7] text-neutral-900 font-sans h-screen overflow-hidden antialiased selection:bg-teal-100"
       )}>
         {children}
       </body>

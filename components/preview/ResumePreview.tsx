@@ -5,6 +5,36 @@ import { useSmartFit, getBaseStyles } from "@/lib/smart-fit";
 import { clsx } from "clsx";
 import { useRef } from "react";
 
+/**
+ * Convert description text (plain text with newlines OR legacy HTML) to display format
+ */
+const formatDescription = (description: string): React.ReactNode => {
+    if (!description) return null;
+
+    // Check if it's legacy HTML format
+    if (description.includes("<li>")) {
+        // Keep using dangerouslySetInnerHTML for HTML
+        return (
+            <div
+                className="text-justify text-neutral-800 [&>ul]:list-disc [&>ul]:pl-4 [&>ul>li]:mb-0.5"
+                dangerouslySetInnerHTML={{ __html: description }}
+            />
+        );
+    }
+
+    // New plain text format: split by newlines and render as bullet list
+    const lines = description.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+    if (lines.length === 0) return null;
+
+    return (
+        <ul className="list-disc pl-4 text-justify text-neutral-800">
+            {lines.map((line, index) => (
+                <li key={index} className="mb-0.5">{line}</li>
+            ))}
+        </ul>
+    );
+};
+
 export const ResumePreview = () => {
     const { data, settings } = useResumeStore();
     const { basics, experience, education, skills } = data;
@@ -25,9 +55,10 @@ export const ResumePreview = () => {
                     lineHeight: 'var(--line-height-body)',
                     letterSpacing: 'var(--letter-spacing)',
                     padding: 'var(--margin-y) var(--margin-x)',
-                    // A4 dimensions
+                    // A4 dimensions - minHeight allows multi-page, CSS handles page breaks
                     width: '210mm',
                     minHeight: '297mm',
+                    boxSizing: 'border-box',
                 }}
             >
                 {/* Header - No border underline as per user request */}
@@ -67,10 +98,7 @@ export const ResumePreview = () => {
                                         <p className="italic text-neutral-700">{job.role}</p>
                                         <span className="text-[9pt] text-neutral-600 tabular-nums">{job.startDate} – {job.endDate}</span>
                                     </div>
-                                    <div
-                                        className="text-justify text-neutral-800 [&>ul]:list-disc [&>ul]:pl-4 [&>ul>li]:mb-0.5"
-                                        dangerouslySetInnerHTML={{ __html: job.description }}
-                                    />
+                                    {formatDescription(job.description)}
                                 </div>
                             ))}
                         </div>
