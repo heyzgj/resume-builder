@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 
+type ExportSettings = {
+    language?: 'en' | 'zh';
+    smartFitEnabled?: boolean;
+    density?: number;
+    layoutMode?: 'recommended' | 'onePage' | 'twoPage' | 'unlimited';
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const scaleCssLength = (value: string, factor: number) => {
+    const match = value.trim().match(/^(-?\d*\.?\d+)([a-z%]+)$/i);
+    if (!match) return value;
+    const numberValue = Number.parseFloat(match[1]);
+    const unit = match[2];
+    if (!Number.isFinite(numberValue)) return value;
+    const scaled = numberValue * factor;
+    const rounded = Math.round(scaled * 1000) / 1000;
+    return `${rounded}${unit}`;
+};
+
 // Types for PDF generation
 interface SocialLink { platform: string; url: string; }
 interface ExperienceItem { company: string; role: string; location: string; startDate: string; endDate: string; description: string; visible?: boolean; }
@@ -27,19 +47,96 @@ interface ResumeData {
     customSections: CustomSection[];
 }
 
-// Complete HTML template with embedded styles for PDF generation
-function generateResumeHTML(data: ResumeData, language: 'en' | 'zh') {
-    const isZH = language === 'zh';
+type ExportTypography = {
+    language: 'en' | 'zh';
+    fontFamily: string;
+    fontSize: string;
+    lineHeight: number;
+    marginX: string;
+    marginY: string;
+    nameSize: string;
+    sectionSize: string;
+    letterSpacing: string;
+};
 
-    // Typography settings based on language
-    const fontFamily = isZH
-        ? "'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif"
-        : "'Times New Roman', Georgia, serif";
-    const fontSize = '10.5pt';
-    const lineHeight = isZH ? '1.3' : '1.15';
-    const margin = isZH ? '2cm' : '0.8in';
-    const nameSize = isZH ? '18pt' : '16pt';
-    const sectionSize = '11pt';
+const getTypography = (settings: ExportSettings | undefined, languageFallback: 'en' | 'zh'): ExportTypography => {
+    const language = settings?.language || languageFallback;
+
+    const base = language === 'zh'
+        ? {
+            fontFamily: "'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', sans-serif",
+            fontSize: '10.5pt',
+            lineHeight: 1.3,
+            marginX: '2cm',
+            marginY: '2cm',
+            nameSize: '18pt',
+            sectionSize: '11pt',
+            letterSpacing: '-0.02em',
+        }
+        : {
+            fontFamily: "'Times New Roman', 'Garamond', Georgia, serif",
+            fontSize: '10.5pt',
+            lineHeight: 1.15,
+            marginX: '0.8in',
+            marginY: '0.8in',
+            nameSize: '16pt',
+            sectionSize: '11pt',
+            letterSpacing: 'normal',
+        };
+
+    const smartFitEnabled = settings?.smartFitEnabled === true || settings?.layoutMode === 'onePage';
+    const density = clamp(Number(settings?.density ?? 1), 0.8, 1.2);
+    const densityDelta = density - 1;
+
+    let fontSize = base.fontSize;
+    let lineHeight = base.lineHeight;
+    let marginX = base.marginX;
+    let marginY = base.marginY;
+    let fontFamily = base.fontFamily;
+    let nameSize = base.nameSize;
+    let sectionSize = base.sectionSize;
+    let letterSpacing = base.letterSpacing;
+
+    // Smart-Fit compression presets (mirrors client behavior at a high level)
+    if (smartFitEnabled) {
+        const preferCompact = density <= 0.95;
+
+        // Stage 1 (tighten margins + line height)
+        marginX = language === 'zh' ? '1.5cm' : '0.6in';
+        marginY = language === 'zh' ? '1.2cm' : '0.5in';
+        lineHeight = language === 'zh' ? 1.2 : 1.1;
+
+        // Stage 2 (reduce font size) when user already prefers compact density
+        if (preferCompact) {
+            marginX = language === 'zh' ? '1.2cm' : '0.5in';
+            marginY = language === 'zh' ? '1cm' : '0.4in';
+            fontSize = '9.5pt';
+            sectionSize = '10pt';
+            lineHeight = language === 'zh' ? 1.15 : 1.05;
+        }
+    }
+
+    // Density scaling (matches preview: primarily margins + line height)
+    marginX = scaleCssLength(marginX, density);
+    marginY = scaleCssLength(marginY, density);
+    lineHeight = clamp(lineHeight + densityDelta * 0.5, 1.0, 1.5);
+
+    return {
+        language,
+        fontFamily,
+        fontSize,
+        lineHeight,
+        marginX,
+        marginY,
+        nameSize,
+        sectionSize,
+        letterSpacing,
+    };
+};
+
+// Complete HTML template with embedded styles for PDF generation
+function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
+    const { fontFamily, fontSize, lineHeight, nameSize, sectionSize, letterSpacing } = typography;
 
     // Section title style
     const sectionTitleStyle = `font-weight: bold; font-size: ${sectionSize}; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #d0d0d0; padding-bottom: 4px; margin-bottom: 12px; color: #1a1a1a;`;
@@ -221,23 +318,24 @@ function generateResumeHTML(data: ResumeData, language: 'en' | 'zh') {
 <html>
 <head>
     <meta charset="UTF-8">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: ${fontFamily};
-            font-size: ${fontSize};
-            line-height: ${lineHeight};
-            color: #1a1a1a;
-            background: white;
-        }
-        .resume {
-            width: 100%;
-            background: white;
-        }
+	    <style>
+	        * {
+	            margin: 0;
+	            padding: 0;
+	            box-sizing: border-box;
+	        }
+	        body {
+	            font-family: ${fontFamily};
+	            font-size: ${fontSize};
+	            line-height: ${lineHeight};
+                letter-spacing: ${letterSpacing};
+	            color: #1a1a1a;
+	            background: white;
+	        }
+	        .resume {
+	            width: 100%;
+	            background: white;
+	        }
         
         
         /* Section styles - allow breaks inside sections */
@@ -296,14 +394,16 @@ function generateResumeHTML(data: ResumeData, language: 'en' | 'zh') {
 
 export async function POST(request: NextRequest) {
     try {
-        const { resumeData, language, filename = 'resume.pdf' } = await request.json();
+        const { resumeData, language, settings, filename = 'resume.pdf' } = await request.json();
 
         if (!resumeData) {
             return NextResponse.json({ error: 'Resume data is required' }, { status: 400 });
         }
 
-        // Generate HTML with proper styling - now passing full resumeData
-        const html = generateResumeHTML(resumeData as ResumeData, language || 'en');
+        const typography = getTypography(settings as ExportSettings | undefined, (language || 'en') as 'en' | 'zh');
+
+        // Generate HTML with proper styling - now passing full resumeData + typography
+        const html = generateResumeHTML(resumeData as ResumeData, typography);
 
         // Launch Puppeteer
         const browser = await puppeteer.launch({
@@ -319,18 +419,17 @@ export async function POST(request: NextRequest) {
         // Wait for fonts
         await page.evaluateHandle('document.fonts.ready');
 
-        // Generate PDF with A4 size and explicit margins
-        const isZH = (language || 'en') === 'zh';
-        const marginValue = isZH ? '2cm' : '0.8in';
+        // Generate PDF with A4 size and explicit margins (mirrors preview density/smart-fit)
+        const { marginX, marginY } = typography;
 
         const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
             margin: {
-                top: marginValue,
-                right: marginValue,
-                bottom: marginValue,
-                left: marginValue,
+                top: marginY,
+                right: marginX,
+                bottom: marginY,
+                left: marginX,
             },
         });
 

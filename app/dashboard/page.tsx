@@ -136,7 +136,9 @@ const getDefaultSettings = (lang: 'zh' | 'en') => ({
     smartFitEnabled: false,
     density: 1.0,
     accentColor: "#000000",
-    paperSize: lang === 'zh' ? "A4" as const : "Letter" as const
+    paperSize: lang === 'zh' ? "A4" as const : "Letter" as const,
+    layoutMode: "recommended" as const,
+    layoutLocked: false
 });
 
 // Generate auto-naming based on date
@@ -266,6 +268,7 @@ export default function DashboardPage() {
                 body: JSON.stringify({
                     resumeData: doc.data,
                     language: doc.settings.language,
+                    settings: doc.settings,
                     filename: `${doc.title.replace(/\s+/g, '_')}.pdf`
                 }),
             });

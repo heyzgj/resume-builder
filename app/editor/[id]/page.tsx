@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { clsx } from "clsx";
-import { ArrowLeft, Check, Loader2, Download, Sparkles, Plus } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Download, Sparkles, Plus, Lock, Unlock, ChevronDown } from "lucide-react";
 import { BasicsForm } from "@/components/editor/BasicsForm";
 import { ExperienceForm } from "@/components/editor/ExperienceForm";
 import { EducationForm } from "@/components/editor/EducationForm";
@@ -14,7 +14,7 @@ import { ResumePreview } from "@/components/preview/ResumePreview";
 import { ClientOnly } from "@/components/ClientOnly";
 import { useResumeStore } from "@/lib/store";
 import { resumeDB } from "@/lib/db";
-import { SectionType } from "@/lib/types";
+import { DesignSettings, SectionType } from "@/lib/types";
 
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
 
@@ -30,6 +30,9 @@ export default function EditorPage() {
     const [resumeTitle, setResumeTitle] = useState('');
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
+    const [previewPagination, setPreviewPagination] = useState<{ pageCount: number; lastPageFill: number | null } | null>(null);
+    const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+    const layoutMenuRef = useRef<HTMLDivElement>(null);
 
     const {
         data,
@@ -86,9 +89,86 @@ export default function EditorPage() {
         return () => clearTimeout(timer);
     }, [data, settings, resumeTitle, resumeId, loading, notFound]);
 
-    const handleSmartFit = () => {
-        updateSettings({ smartFitEnabled: !settings.smartFitEnabled });
+    const isLayoutLocked = settings.layoutLocked;
+    const layoutMode = settings.layoutMode;
+
+    const setLayoutMode = (mode: typeof settings.layoutMode) => {
+        if (isLayoutLocked) return;
+
+        if (mode === "onePage") {
+            updateSettings({ layoutMode: mode, smartFitEnabled: true });
+            return;
+        }
+
+        updateSettings({ layoutMode: mode, smartFitEnabled: false });
     };
+
+    const setDensityPreset = (preset: "comfortable" | "standard" | "compact") => {
+        const density = preset === "comfortable" ? 1.1 : preset === "compact" ? 0.9 : 1.0;
+        const patch: Partial<DesignSettings> = { density };
+
+        // If the user manually adjusts density in "recommended", freeze auto-tuning.
+        if (layoutMode === "recommended" && !isLayoutLocked) {
+            patch.layoutLocked = true;
+        }
+
+        updateSettings(patch);
+    };
+
+    const toggleLayoutLock = () => {
+        updateSettings({ layoutLocked: !isLayoutLocked });
+    };
+
+    const densityPreset: "comfortable" | "standard" | "compact" =
+        settings.density >= 1.05 ? "comfortable" : settings.density <= 0.95 ? "compact" : "standard";
+
+    // Auto-tune density in "recommended" mode based on preview fill.
+    useEffect(() => {
+        if (layoutMode !== "recommended") return;
+        if (isLayoutLocked) return;
+        if (!previewPagination) return;
+
+        const { pageCount, lastPageFill } = previewPagination;
+        let desiredDensity = 1.0;
+
+        if (pageCount > 1) {
+            desiredDensity = 0.9;
+        } else if (lastPageFill != null) {
+            // Only loosen spacing when the page is clearly underfilled to avoid oscillations near the page boundary.
+            if (lastPageFill < 0.6) desiredDensity = 1.1;
+            else if (lastPageFill > 0.97) desiredDensity = 0.9;
+        }
+
+        const patches: Partial<DesignSettings> = {};
+        if (settings.smartFitEnabled) patches.smartFitEnabled = false;
+        if (Math.abs(settings.density - desiredDensity) > 0.01) patches.density = desiredDensity;
+
+        if (Object.keys(patches).length > 0) {
+            updateSettings(patches);
+        }
+    }, [isLayoutLocked, layoutMode, previewPagination, settings.density, settings.smartFitEnabled, updateSettings]);
+
+    useEffect(() => {
+        if (!layoutMenuOpen) return;
+
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Node | null;
+            if (!target) return;
+            if (layoutMenuRef.current?.contains(target)) return;
+            setLayoutMenuOpen(false);
+        };
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setLayoutMenuOpen(false);
+        };
+
+        document.addEventListener("pointerdown", onPointerDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [layoutMenuOpen]);
 
     const handleExportPDF = async () => {
         setIsExporting(true);
@@ -99,6 +179,7 @@ export default function EditorPage() {
                 body: JSON.stringify({
                     resumeData: data,
                     language: settings.language,
+                    settings,
                     filename: `${data.basics.name.replace(/\s+/g, '_')}_简历.pdf`
                 }),
             });
@@ -242,19 +323,162 @@ export default function EditorPage() {
                 {/* Preview Header - Updated to match design system */}
                 <header className="h-14 flex items-center justify-between px-5 bg-white/90 backdrop-blur-sm border-b border-[var(--border-softer)] z-30 gap-4 flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        {/* Smart Fit Toggle */}
-                        <button
-                            onClick={handleSmartFit}
-                            className={clsx(
-                                "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border",
-                                settings.smartFitEnabled
-                                    ? "bg-[var(--accent-subtle)] text-[var(--accent-primary)] border-[var(--accent-muted)]"
-                                    : "bg-white text-[var(--text-secondary)] border-[var(--border-soft)] hover:bg-[var(--bg-warm)] hover:border-[var(--border-medium)]"
+                        {/* Smart Layout (Popover) */}
+                        <div ref={layoutMenuRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setLayoutMenuOpen((v) => !v)}
+                                className={clsx(
+                                    "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 border",
+                                    layoutMenuOpen
+                                        ? "bg-[var(--accent-subtle)] text-[var(--accent-primary)] border-[var(--accent-muted)] shadow-[var(--shadow-sm)]"
+                                        : "bg-white text-[var(--text-secondary)] border-[var(--border-soft)] hover:bg-[var(--bg-warm)] hover:border-[var(--border-medium)]"
+                                )}
+                                aria-haspopup="menu"
+                                aria-expanded={layoutMenuOpen}
+                            >
+                                <Sparkles size={14} />
+                                智能排版
+                                <ChevronDown
+                                    size={14}
+                                    className={clsx("transition-transform duration-200", layoutMenuOpen && "rotate-180")}
+                                />
+                            </button>
+
+                            {layoutMenuOpen && (
+                                <div
+                                    className="absolute left-0 top-full mt-2 w-[360px] bg-[var(--card-surface)] border border-[var(--border-soft)] rounded-xl shadow-[var(--shadow-md)] p-3 z-50"
+                                    role="menu"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm font-semibold text-[var(--text-primary)]">版式设置</div>
+                                        <button
+                                            type="button"
+                                            onClick={toggleLayoutLock}
+                                            className={clsx(
+                                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all duration-200",
+                                                isLayoutLocked
+                                                    ? "bg-[var(--card-surface)] text-[var(--text-primary)] border-[var(--border-soft)] shadow-[var(--shadow-sm)]"
+                                                    : "bg-white text-[var(--text-secondary)] border-[var(--border-soft)] hover:bg-[var(--bg-warm)]"
+                                            )}
+                                            title={isLayoutLocked ? "已锁定版式" : "锁定版式"}
+                                        >
+                                            {isLayoutLocked ? <Lock size={12} /> : <Unlock size={12} />}
+                                            锁定
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-3 space-y-3">
+                                        <div>
+                                            <div className="text-[11px] font-medium text-[var(--text-muted)] mb-1">目标页数</div>
+                                            <div className="flex items-center gap-1 bg-[var(--bg-warm-subtle)] border border-[var(--border-soft)] rounded-xl p-1">
+                                                {(
+                                                    [
+                                                        { key: "recommended", label: "推荐" },
+                                                        { key: "onePage", label: "1页" },
+                                                        { key: "twoPage", label: "2页" },
+                                                        { key: "unlimited", label: "不限" },
+                                                    ] as const
+                                                ).map((opt) => (
+                                                    <button
+                                                        key={opt.key}
+                                                        type="button"
+                                                        disabled={isLayoutLocked}
+                                                        onClick={() => setLayoutMode(opt.key)}
+                                                        className={clsx(
+                                                            "flex-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-200",
+                                                            isLayoutLocked
+                                                                ? "opacity-60 cursor-not-allowed"
+                                                                : "hover:bg-[var(--bg-warm)]",
+                                                            layoutMode === opt.key
+                                                                ? "bg-[var(--card-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]"
+                                                                : "text-[var(--text-secondary)]"
+                                                        )}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <div className="text-[11px] font-medium text-[var(--text-muted)] mb-1">密度</div>
+                                            <div className="flex items-center gap-1 bg-[var(--bg-warm-subtle)] border border-[var(--border-soft)] rounded-xl p-1">
+                                                {(
+                                                    [
+                                                        { key: "comfortable", label: "舒适" },
+                                                        { key: "standard", label: "标准" },
+                                                        { key: "compact", label: "紧凑" },
+                                                    ] as const
+                                                ).map((opt) => (
+                                                    <button
+                                                        key={opt.key}
+                                                        type="button"
+                                                        disabled={isLayoutLocked}
+                                                        onClick={() => setDensityPreset(opt.key)}
+                                                        className={clsx(
+                                                            "flex-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-200",
+                                                            isLayoutLocked
+                                                                ? "opacity-60 cursor-not-allowed"
+                                                                : "hover:bg-[var(--bg-warm)]",
+                                                            densityPreset === opt.key
+                                                                ? "bg-[var(--card-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]"
+                                                                : "text-[var(--text-secondary)]"
+                                                        )}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1">
+                                            <div
+                                                className={clsx(
+                                                    "px-2.5 py-1.5 rounded-full border text-[11px] font-medium tabular-nums select-none",
+                                                    layoutMode === "onePage" && (previewPagination?.pageCount ?? 1) > 1
+                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                        : "bg-white text-[var(--text-secondary)] border-[var(--border-soft)]"
+                                                )}
+                                                title={previewPagination ? "页数与最后一页填充率" : "正在计算分页..."}
+                                            >
+                                                {previewPagination
+                                                    ? `${previewPagination.pageCount}页 · ${Math.round((previewPagination.lastPageFill ?? 0) * 100)}%`
+                                                    : "计算中..."}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutMenuOpen(false)}
+                                                className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-warm)] transition-all duration-200"
+                                            >
+                                                完成
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             )}
+                        </div>
+
+                        <div
+                            className={clsx(
+                                "px-2.5 py-1.5 rounded-full border text-[11px] font-medium tabular-nums select-none",
+                                layoutMode === "onePage" && (previewPagination?.pageCount ?? 1) > 1
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-white text-[var(--text-secondary)] border-[var(--border-soft)]"
+                            )}
+                            title={previewPagination ? "页数与最后一页填充率" : "正在计算分页..."}
                         >
-                            <Sparkles size={14} />
-                            智能排版
-                        </button>
+                            {previewPagination
+                                ? `${previewPagination.pageCount}页 · ${Math.round((previewPagination.lastPageFill ?? 0) * 100)}%`
+                                : "计算中..."}
+                        </div>
+
+                        {isLayoutLocked && (
+                            <div className="text-[var(--text-muted)]" title="已锁定版式">
+                                <Lock size={14} />
+                            </div>
+                        )}
                     </div>
 
                     {/* Export Button */}
@@ -286,11 +510,11 @@ export default function EditorPage() {
                 <div className="flex-1 overflow-auto flex items-start justify-center p-6 lg:p-10">
                     <div
                         ref={previewRef}
-                        className="shadow-2xl rounded-sm bg-white flex-shrink-0"
+                        className="flex-shrink-0"
                         style={{ maxWidth: '210mm' }}
                     >
                         <ClientOnly>
-                            <ResumePreview />
+                            <ResumePreview onPaginationChange={setPreviewPagination} />
                         </ClientOnly>
                     </div>
                 </div>

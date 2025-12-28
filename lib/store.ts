@@ -167,7 +167,9 @@ const initialSettings: DesignSettings = {
     smartFitEnabled: false,
     density: 1.0,
     accentColor: '#000000',
-    paperSize: 'Letter'
+    paperSize: 'Letter',
+    layoutMode: 'recommended',
+    layoutLocked: false,
 };
 
 export const useResumeStore = create<ResumeState>()(
@@ -178,7 +180,7 @@ export const useResumeStore = create<ResumeState>()(
 
             // Data Loading
             setData: (newData) => set({ data: newData }),
-            setSettings: (newSettings) => set({ settings: newSettings }),
+            setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
 
             updateBasics: (updates) =>
                 set((state) => ({ data: { ...state.data, basics: { ...state.data.basics, ...updates } } })),
@@ -529,12 +531,29 @@ export const useResumeStore = create<ResumeState>()(
             switchToLanguageDefaults: (lang) =>
                 set(() => ({
                     data: lang === 'zh' ? initialDataZH : initialDataEN,
-                    settings: { language: lang, smartFitEnabled: false, density: 1.0, accentColor: '#000000', paperSize: lang === 'zh' ? 'A4' : 'Letter' }
+                    settings: {
+                        language: lang,
+                        smartFitEnabled: false,
+                        density: 1.0,
+                        accentColor: '#000000',
+                        paperSize: lang === 'zh' ? 'A4' : 'Letter',
+                        layoutMode: 'recommended',
+                        layoutLocked: false,
+                    }
                 })),
 
         }),
         {
             name: 'resume-storage',
+            merge: (persistedState, currentState) => {
+                const persisted = persistedState as Partial<ResumeState> | undefined;
+                if (!persisted) return currentState;
+                return {
+                    ...currentState,
+                    ...persisted,
+                    settings: { ...currentState.settings, ...(persisted.settings || {}) },
+                };
+            },
         }
     )
 );

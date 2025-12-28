@@ -94,4 +94,6 @@ export type DesignSettings = {
   density: number; // 0.8 to 1.2
   accentColor: string; // Hex code
   paperSize: "A4" | "Letter";
+  layoutMode: "recommended" | "onePage" | "twoPage" | "unlimited";
+  layoutLocked: boolean;
 };
