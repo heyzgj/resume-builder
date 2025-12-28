@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, FileText, MoreHorizontal, Pencil, Trash2, Download, Upload, Sparkles, Loader2, X } from "lucide-react";
+import { Plus, FileText, MoreHorizontal, Pencil, Trash2, Download, Upload, Sparkles, Loader2, X, Copy } from "lucide-react";
 import { resumeDB, ResumeDocument } from "@/lib/db";
 import { clsx } from "clsx";
 import { ResumeData } from "@/lib/types";
@@ -257,6 +257,16 @@ export default function DashboardPage() {
         setActiveMenu(null);
     };
 
+    const handleDuplicate = async (doc: ResumeDocument) => {
+        setActiveMenu(null);
+        const newId = await resumeDB.duplicate(doc.id);
+        if (!newId) {
+            alert("复制失败，请稍后重试");
+            return;
+        }
+        await loadResumes();
+    };
+
     const handleExportPDF = async (doc: ResumeDocument) => {
         setExportingId(doc.id);
         setActiveMenu(null);
@@ -273,7 +283,11 @@ export default function DashboardPage() {
                 }),
             });
 
-            if (!response.ok) throw new Error('Export failed');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const detail = errorData.details ? ` (${errorData.details})` : '';
+                throw new Error(errorData.error ? `${errorData.error}${detail}` : 'Export failed');
+            }
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -486,6 +500,13 @@ export default function DashboardPage() {
                                                             >
                                                                 <Download size={14} />
                                                                 下载 PDF
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDuplicate(doc)}
+                                                                className="w-full px-4 py-2.5 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-warm)] flex items-center gap-3 transition-colors"
+                                                            >
+                                                                <Copy size={14} />
+                                                                复制
                                                             </button>
                                                             <div className="my-1.5 border-t border-[var(--border-softer)]" />
                                                             <button

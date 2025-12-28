@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { clsx } from "clsx";
 import { Bold, Italic, List, ListOrdered, IndentDecrease, IndentIncrease } from "lucide-react";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 
 interface RichTextEditorProps {
     value: string;
@@ -50,6 +50,21 @@ export const RichTextEditor = ({
     placeholder = "输入内容...",
     className
 }: RichTextEditorProps) => {
+    const lastHtmlRef = useRef<string>("");
+
+    const normalizeHtml = (html: string) => {
+        const trimmed = html.trim();
+        if (
+            trimmed === "" ||
+            trimmed === "<p></p>" ||
+            trimmed === "<p><br></p>" ||
+            trimmed === "<p>&nbsp;</p>"
+        ) {
+            return "";
+        }
+        return trimmed;
+    };
+
     const editor = useEditor({
         immediatelyRender: false, // Prevent SSR hydration mismatches
         extensions: [
@@ -80,17 +95,20 @@ export const RichTextEditor = ({
         },
         onUpdate: ({ editor }) => {
             // Get HTML but avoid empty paragraph
-            const html = editor.getHTML();
-            const isEmpty = html === '<p></p>' || html === '';
-            onChange(isEmpty ? '' : html);
+            const html = normalizeHtml(editor.getHTML());
+            if (html === lastHtmlRef.current) return;
+            lastHtmlRef.current = html;
+            onChange(html);
         },
     });
 
     // Sync external value changes
     useEffect(() => {
-        if (editor && value !== editor.getHTML()) {
-            editor.commands.setContent(value || '');
-        }
+        if (!editor) return;
+        const normalizedValue = normalizeHtml(value || "");
+        if (normalizedValue === lastHtmlRef.current) return;
+        lastHtmlRef.current = normalizedValue;
+        editor.commands.setContent(normalizedValue || "");
     }, [value, editor]);
 
     const handleIndent = useCallback(() => {

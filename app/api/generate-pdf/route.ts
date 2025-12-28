@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 
 type ExportSettings = {
     language?: 'en' | 'zh';
     smartFitEnabled?: boolean;
     density?: number;
     layoutMode?: 'recommended' | 'onePage' | 'twoPage' | 'unlimited';
+    paperSize?: 'A4' | 'Letter';
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -59,11 +60,12 @@ type ExportTypography = {
     letterSpacing: string;
 };
 
-const getTypography = (settings: ExportSettings | undefined, languageFallback: 'en' | 'zh'): ExportTypography => {
-    const language = settings?.language || languageFallback;
+type SmartFitStage = 0 | 1 | 2 | 3;
 
-    const base = language === 'zh'
-        ? {
+const getBaseTypography = (language: 'en' | 'zh'): ExportTypography => {
+    if (language === 'zh') {
+        return {
+            language,
             fontFamily: "'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', sans-serif",
             fontSize: '10.5pt',
             lineHeight: 1.3,
@@ -72,71 +74,88 @@ const getTypography = (settings: ExportSettings | undefined, languageFallback: '
             nameSize: '18pt',
             sectionSize: '11pt',
             letterSpacing: '-0.02em',
-        }
-        : {
-            fontFamily: "'Times New Roman', 'Garamond', Georgia, serif",
-            fontSize: '10.5pt',
-            lineHeight: 1.15,
-            marginX: '0.8in',
-            marginY: '0.8in',
-            nameSize: '16pt',
-            sectionSize: '11pt',
-            letterSpacing: 'normal',
         };
-
-    const smartFitEnabled = settings?.smartFitEnabled === true || settings?.layoutMode === 'onePage';
-    const density = clamp(Number(settings?.density ?? 1), 0.8, 1.2);
-    const densityDelta = density - 1;
-
-    let fontSize = base.fontSize;
-    let lineHeight = base.lineHeight;
-    let marginX = base.marginX;
-    let marginY = base.marginY;
-    let fontFamily = base.fontFamily;
-    let nameSize = base.nameSize;
-    let sectionSize = base.sectionSize;
-    let letterSpacing = base.letterSpacing;
-
-    // Smart-Fit compression presets (mirrors client behavior at a high level)
-    if (smartFitEnabled) {
-        const preferCompact = density <= 0.95;
-
-        // Stage 1 (tighten margins + line height)
-        marginX = language === 'zh' ? '1.5cm' : '0.6in';
-        marginY = language === 'zh' ? '1.2cm' : '0.5in';
-        lineHeight = language === 'zh' ? 1.2 : 1.1;
-
-        // Stage 2 (reduce font size) when user already prefers compact density
-        if (preferCompact) {
-            marginX = language === 'zh' ? '1.2cm' : '0.5in';
-            marginY = language === 'zh' ? '1cm' : '0.4in';
-            fontSize = '9.5pt';
-            sectionSize = '10pt';
-            lineHeight = language === 'zh' ? 1.15 : 1.05;
-        }
     }
-
-    // Density scaling (matches preview: primarily margins + line height)
-    marginX = scaleCssLength(marginX, density);
-    marginY = scaleCssLength(marginY, density);
-    lineHeight = clamp(lineHeight + densityDelta * 0.5, 1.0, 1.5);
 
     return {
         language,
-        fontFamily,
-        fontSize,
-        lineHeight,
-        marginX,
-        marginY,
-        nameSize,
-        sectionSize,
-        letterSpacing,
+        fontFamily: "'Times New Roman', 'Garamond', Georgia, serif",
+        fontSize: '10.5pt',
+        lineHeight: 1.15,
+        marginX: '0.8in',
+        marginY: '0.8in',
+        nameSize: '16pt',
+        sectionSize: '11pt',
+        letterSpacing: 'normal',
     };
 };
 
+const applySmartFitStage = (base: ExportTypography, stage: SmartFitStage): ExportTypography => {
+    if (stage === 0) return { ...base };
+
+    if (stage === 1) {
+        return {
+            ...base,
+            marginX: base.language === 'zh' ? '1.5cm' : '0.6in',
+            marginY: base.language === 'zh' ? '1.2cm' : '0.5in',
+            lineHeight: base.language === 'zh' ? 1.2 : 1.1,
+        };
+    }
+
+    if (stage === 2) {
+        return {
+            ...base,
+            marginX: base.language === 'zh' ? '1.2cm' : '0.5in',
+            marginY: base.language === 'zh' ? '1cm' : '0.4in',
+            fontSize: '9.5pt',
+            sectionSize: '10pt',
+            lineHeight: base.language === 'zh' ? 1.15 : 1.05,
+        };
+    }
+
+    return {
+        ...base,
+        marginX: base.language === 'zh' ? '1cm' : '0.5in',
+        marginY: base.language === 'zh' ? '0.8cm' : '0.35in',
+        fontSize: '9pt',
+        nameSize: '14pt',
+        sectionSize: '9.5pt',
+        lineHeight: 1.0,
+        letterSpacing: base.language === 'zh' ? '-0.03em' : '-0.01em',
+    };
+};
+
+const applyDensity = (typography: ExportTypography, density: number): ExportTypography => {
+    const densityDelta = density - 1;
+    return {
+        ...typography,
+        marginX: scaleCssLength(typography.marginX, density),
+        marginY: scaleCssLength(typography.marginY, density),
+        lineHeight: clamp(typography.lineHeight + densityDelta * 0.5, 1.0, 1.5),
+    };
+};
+
+const buildTypography = (
+    language: 'en' | 'zh',
+    density: number,
+    stage: SmartFitStage
+): ExportTypography => {
+    const base = getBaseTypography(language);
+    const staged = applySmartFitStage(base, stage);
+    return applyDensity(staged, density);
+};
+
 // Complete HTML template with embedded styles for PDF generation
-function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
-    const { fontFamily, fontSize, lineHeight, nameSize, sectionSize, letterSpacing } = typography;
+function generateResumeHTML(
+    data: ResumeData,
+    typography: ExportTypography,
+    pageSize: { width: string; height: string },
+    options?: { allowItemBreaks?: boolean }
+) {
+    const { fontFamily, fontSize, lineHeight, nameSize, sectionSize, letterSpacing, marginX, marginY } = typography;
+    const { width: pageWidth, height: pageHeight } = pageSize;
+    const allowItemBreaks = options?.allowItemBreaks === true;
+    const itemBreakRule = allowItemBreaks ? "auto" : "avoid";
 
     // Section title style
     const sectionTitleStyle = `font-weight: bold; font-size: ${sectionSize}; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #d0d0d0; padding-bottom: 4px; margin-bottom: 12px; color: #1a1a1a;`;
@@ -324,11 +343,16 @@ function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
 	            padding: 0;
 	            box-sizing: border-box;
 	        }
+            @page {
+                size: ${pageWidth} ${pageHeight};
+                margin: ${marginY} ${marginX};
+            }
 	        body {
 	            font-family: ${fontFamily};
 	            font-size: ${fontSize};
 	            line-height: ${lineHeight};
                 letter-spacing: ${letterSpacing};
+                margin: 0;
 	            color: #1a1a1a;
 	            background: white;
 	        }
@@ -348,8 +372,8 @@ function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
         .education-item,
         .custom-item,
         .honor-item {
-            break-inside: avoid;
-            page-break-inside: avoid;
+            break-inside: ${itemBreakRule};
+            page-break-inside: ${itemBreakRule};
         }
         
         /* Section titles should stay with content */
@@ -362,6 +386,11 @@ function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
         
         ul {
             list-style-type: disc;
+            padding-left: 16px;
+            margin: 0;
+        }
+        ol {
+            list-style-type: decimal;
             padding-left: 16px;
             margin: 0;
         }
@@ -393,6 +422,7 @@ function generateResumeHTML(data: ResumeData, typography: ExportTypography) {
 }
 
 export async function POST(request: NextRequest) {
+    let browser: Browser | null = null;
     try {
         const { resumeData, language, settings, filename = 'resume.pdf' } = await request.json();
 
@@ -400,40 +430,126 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Resume data is required' }, { status: 400 });
         }
 
-        const typography = getTypography(settings as ExportSettings | undefined, (language || 'en') as 'en' | 'zh');
-
-        // Generate HTML with proper styling - now passing full resumeData + typography
-        const html = generateResumeHTML(resumeData as ResumeData, typography);
+        const exportSettings = settings as ExportSettings | undefined;
+        const resolvedLanguage = (exportSettings?.language || language || 'en') as 'en' | 'zh';
+        const density = clamp(Number(exportSettings?.density ?? 1), 0.8, 1.2);
+        const smartFitRequested =
+            exportSettings?.smartFitEnabled === true || exportSettings?.layoutMode === 'onePage';
+        const pageSize = { width: '210mm', height: '297mm' };
 
         // Launch Puppeteer
-        const browser = await puppeteer.launch({
+        browser = await puppeteer.launch({
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
         });
 
         const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(60000);
+        page.setDefaultTimeout(60000);
 
-        // Set content and wait for rendering
-        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const waitForFonts = async () => {
+            try {
+                await page.evaluate(() => (document as any).fonts?.ready || Promise.resolve());
+            } catch (error) {
+                console.warn('Font readiness check failed:', error);
+            }
+        };
 
-        // Wait for fonts
-        await page.evaluateHandle('document.fonts.ready');
+        const renderAndMeasure = async (html: string, marginY: string) => {
+            await page.setContent(html, { waitUntil: 'load' });
+            await page.emulateMediaType('print');
+            await waitForFonts();
 
-        // Generate PDF with A4 size and explicit margins (mirrors preview density/smart-fit)
-        const { marginX, marginY } = typography;
+            return page.evaluate(({ pageHeightCss, marginYCss }) => {
+                const probe = document.createElement('div');
+                probe.style.position = 'absolute';
+                probe.style.left = '-9999px';
+                probe.style.top = '0';
+                probe.style.height = pageHeightCss;
+                document.body.appendChild(probe);
+                const pageHeight = probe.getBoundingClientRect().height;
+                probe.remove();
 
-        const pdfBuffer = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: marginY,
-                right: marginX,
-                bottom: marginY,
-                left: marginX,
-            },
-        });
+                const marginProbe = document.createElement('div');
+                marginProbe.style.position = 'absolute';
+                marginProbe.style.left = '-9999px';
+                marginProbe.style.top = '0';
+                marginProbe.style.height = marginYCss;
+                document.body.appendChild(marginProbe);
+                const marginY = marginProbe.getBoundingClientRect().height;
+                marginProbe.remove();
 
-        await browser.close();
+                return { pageHeight, marginY, contentHeight: document.body.scrollHeight };
+            }, { pageHeightCss: pageSize.height, marginYCss: marginY });
+        };
+
+        let finalHtml = generateResumeHTML(
+            resumeData as ResumeData,
+            buildTypography(resolvedLanguage, density, 0),
+            pageSize,
+            { allowItemBreaks: smartFitRequested }
+        );
+
+        let pdfBuffer: Uint8Array;
+        try {
+            if (smartFitRequested) {
+                const stages: SmartFitStage[] = [0, 1, 2, 3];
+                for (const stage of stages) {
+                    const candidateTypography = buildTypography(resolvedLanguage, density, stage);
+                    const candidateHtml = generateResumeHTML(
+                        resumeData as ResumeData,
+                        candidateTypography,
+                        pageSize,
+                        { allowItemBreaks: true }
+                    );
+                    const { pageHeight, marginY, contentHeight } = await renderAndMeasure(
+                        candidateHtml,
+                        candidateTypography.marginY
+                    );
+                    const availableHeight = Math.max(pageHeight - marginY * 2, 0);
+                    finalHtml = candidateHtml;
+                    if (contentHeight <= availableHeight + 1 || stage === 3) break;
+                }
+            } else {
+                await page.setContent(finalHtml, { waitUntil: 'load' });
+                await page.emulateMediaType('print');
+                await waitForFonts();
+            }
+
+            pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                preferCSSPageSize: true,
+                margin: {
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    left: 0,
+                },
+            });
+        } catch (error) {
+            console.error('Primary PDF export failed, retrying without smart-fit:', error);
+            const fallbackHtml = generateResumeHTML(
+                resumeData as ResumeData,
+                buildTypography(resolvedLanguage, density, 0),
+                pageSize,
+                { allowItemBreaks: true }
+            );
+            await page.setContent(fallbackHtml, { waitUntil: 'load' });
+            await page.emulateMediaType('print');
+            await waitForFonts();
+            pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                preferCSSPageSize: true,
+                margin: {
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    left: 0,
+                },
+            });
+        }
 
         // Return PDF as downloadable file
         return new NextResponse(Buffer.from(pdfBuffer), {
@@ -449,5 +565,9 @@ export async function POST(request: NextRequest) {
             { error: 'Failed to generate PDF', details: String(error) },
             { status: 500 }
         );
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
     }
 }

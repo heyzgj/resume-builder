@@ -33,6 +33,7 @@ export default function EditorPage() {
     const [previewPagination, setPreviewPagination] = useState<{ pageCount: number; lastPageFill: number | null } | null>(null);
     const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
     const layoutMenuRef = useRef<HTMLDivElement>(null);
+    const autoTuneRef = useRef<{ lastAppliedAt: number }>({ lastAppliedAt: 0 });
 
     const {
         data,
@@ -135,8 +136,10 @@ export default function EditorPage() {
             desiredDensity = 0.9;
         } else if (lastPageFill != null) {
             // Only loosen spacing when the page is clearly underfilled to avoid oscillations near the page boundary.
-            if (lastPageFill < 0.6) desiredDensity = 1.1;
-            else if (lastPageFill > 0.97) desiredDensity = 0.9;
+            const loosenThreshold = settings.density <= 0.95 ? 0.5 : 0.6;
+            const tightenThreshold = settings.density >= 1.05 ? 0.99 : 0.97;
+            if (lastPageFill < loosenThreshold) desiredDensity = 1.1;
+            else if (lastPageFill > tightenThreshold) desiredDensity = 0.9;
         }
 
         const patches: Partial<DesignSettings> = {};
@@ -144,6 +147,9 @@ export default function EditorPage() {
         if (Math.abs(settings.density - desiredDensity) > 0.01) patches.density = desiredDensity;
 
         if (Object.keys(patches).length > 0) {
+            const now = performance.now();
+            if (now - autoTuneRef.current.lastAppliedAt < 800) return;
+            autoTuneRef.current.lastAppliedAt = now;
             updateSettings(patches);
         }
     }, [isLayoutLocked, layoutMode, previewPagination, settings.density, settings.smartFitEnabled, updateSettings]);
@@ -186,7 +192,8 @@ export default function EditorPage() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Export failed');
+                const detail = errorData.details ? ` (${errorData.details})` : '';
+                throw new Error(errorData.error ? `${errorData.error}${detail}` : 'Export failed');
             }
 
             const blob = await response.blob();

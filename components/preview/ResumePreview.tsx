@@ -85,36 +85,111 @@ const getDescriptionBlocks = (description: string): React.ReactNode[] => {
     const root = doc.body.firstElementChild;
     if (!root) return [];
 
-    const listItems = Array.from(root.querySelectorAll("li"));
-    if (listItems.length > 0) {
-        return listItems.map((li, index) => (
-            <ul key={index} className="list-disc pl-4 m-0 text-justify text-neutral-800">
-                <li className="m-0">
-                    <div
-                        className="[&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0"
-                        dangerouslySetInnerHTML={{ __html: li.innerHTML }}
-                    />
-                </li>
-            </ul>
-        ));
-    }
+    const blocks: React.ReactNode[] = [];
+    let blockIndex = 0;
+    const nextKey = (prefix: string) => `${prefix}-${blockIndex++}`;
+    const richTextClass =
+        "text-justify text-neutral-800 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0";
 
-    const paragraphs = Array.from(root.querySelectorAll("p"));
-    if (paragraphs.length > 0) {
-        return paragraphs.map((p, index) => (
+    const pushParagraph = (html: string) => {
+        blocks.push(
             <p
-                key={index}
+                key={nextKey("p")}
                 className="text-justify text-neutral-800 my-0.5"
-                dangerouslySetInnerHTML={{ __html: p.innerHTML }}
+                dangerouslySetInnerHTML={{ __html: html }}
             />
-        ));
-    }
+        );
+    };
+
+    const pushListItem = (li: HTMLElement, listTag: "ul" | "ol", startIndex: number) => {
+        const listClass =
+            listTag === "ol"
+                ? "list-decimal pl-4 m-0 text-justify text-neutral-800"
+                : "list-disc pl-4 m-0 text-justify text-neutral-800";
+        const listItem = (
+            <li className="m-0">
+                <div className={richTextClass} dangerouslySetInnerHTML={{ __html: li.innerHTML }} />
+            </li>
+        );
+
+        if (listTag === "ol") {
+            blocks.push(
+                <ol key={nextKey("ol")} start={startIndex} className={listClass}>
+                    {listItem}
+                </ol>
+            );
+            return;
+        }
+
+        blocks.push(
+            <ul key={nextKey("ul")} className={listClass}>
+                {listItem}
+            </ul>
+        );
+    };
+
+    const pushList = (listEl: HTMLUListElement | HTMLOListElement) => {
+        const tag = listEl.tagName.toLowerCase() as "ul" | "ol";
+        const baseStart =
+            tag === "ol" ? Number.parseInt(listEl.getAttribute("start") || "1", 10) || 1 : 1;
+        const items = Array.from(listEl.children).filter(
+            (child) => child.tagName.toLowerCase() === "li"
+        ) as HTMLLIElement[];
+
+        items.forEach((li, index) => {
+            pushListItem(li, tag, baseStart + index);
+        });
+    };
+
+    const walkNodes = (nodes: ChildNode[]) => {
+        nodes.forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const text = node.textContent?.trim();
+                if (text) {
+                    pushParagraph(text);
+                }
+                return;
+            }
+
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+            const el = node as HTMLElement;
+            const tag = el.tagName.toLowerCase();
+
+            if (tag === "p") {
+                pushParagraph(el.innerHTML);
+                return;
+            }
+
+            if (tag === "ul" || tag === "ol") {
+                pushList(el as HTMLUListElement | HTMLOListElement);
+                return;
+            }
+
+            if (el.childNodes.length > 0) {
+                walkNodes(Array.from(el.childNodes));
+                return;
+            }
+
+            blocks.push(
+                <div
+                    key={nextKey("block")}
+                    className={richTextClass}
+                    dangerouslySetInnerHTML={{ __html: el.outerHTML }}
+                />
+            );
+        });
+    };
+
+    walkNodes(Array.from(root.childNodes));
+
+    if (blocks.length > 0) return blocks;
 
     // Fallback: render the HTML as-is as one block.
     return [
         <div
             key="html-single"
-            className="text-justify text-neutral-800 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0"
+            className={richTextClass}
             dangerouslySetInnerHTML={{ __html: description }}
         />,
     ];
