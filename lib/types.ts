@@ -24,6 +24,7 @@ export type EducationItem = {
   endDate: string;
   gpa?: string;
   honors?: string;
+  description?: string; // Rich text description
   visible: boolean;
 };
 
@@ -39,6 +40,7 @@ export type HonorItem = {
   title: string;      // 奖项名称
   issuer: string;     // 颁发机构
   date: string;       // 日期
+  description?: string; // Optional description
 };
 
 // Section template types

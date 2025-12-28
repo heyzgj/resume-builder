@@ -3,26 +3,27 @@
 import { useResumeStore } from "@/lib/store";
 import { useSmartFit, getBaseStyles } from "@/lib/smart-fit";
 import { clsx } from "clsx";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 
 /**
- * Convert description text (plain text with newlines OR legacy HTML) to display format
+ * Convert description text (plain text with newlines OR HTML from RichTextEditor) to display format
  */
 const formatDescription = (description: string): React.ReactNode => {
     if (!description) return null;
 
-    // Check if it's legacy HTML format
-    if (description.includes("<li>")) {
-        // Keep using dangerouslySetInnerHTML for HTML
+    // Check if it's HTML format (from TipTap or legacy)
+    // TipTap outputs HTML with tags like <p>, <ul>, <li>, <strong>, <em>, etc.
+    if (description.includes("<") && description.includes(">")) {
+        // Use dangerouslySetInnerHTML for HTML content
         return (
             <div
-                className="text-justify text-neutral-800 [&>ul]:list-disc [&>ul]:pl-4 [&>ul>li]:mb-0.5"
+                className="text-justify text-neutral-800 [&>ul]:list-disc [&>ul]:pl-4 [&>ul>li]:mb-0.5 [&>ol]:list-decimal [&>ol]:pl-4 [&>ol>li]:mb-0.5 [&>p]:my-0.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0"
                 dangerouslySetInnerHTML={{ __html: description }}
             />
         );
     }
 
-    // New plain text format: split by newlines and render as bullet list
+    // Plain text format: split by newlines and render as bullet list
     const lines = description.split("\n").map(line => line.trim()).filter(line => line.length > 0);
     if (lines.length === 0) return null;
 
@@ -102,10 +103,11 @@ export const ResumePreview = () => {
                                     <div className="flex justify-between items-baseline">
                                         <div className="text-neutral-700">
                                             <span className="italic">{edu.degree}</span>
-                                            {edu.gpa && <span className="not-italic ml-2">• GPA: {edu.gpa}</span>}
+                                            {edu.gpa && <span className="not-italic ml-2">• {edu.gpa}</span>}
                                         </div>
                                         <span className="text-[9pt] text-neutral-600 tabular-nums">{edu.startDate} – {edu.endDate}</span>
                                     </div>
+                                    {edu.description && formatDescription(edu.description)}
                                 </div>
                             ))}
                         </div>
@@ -183,10 +185,15 @@ export const ResumePreview = () => {
                             {customSection.type === 'honors' && customSection.honors && customSection.honors.length > 0 && (
                                 <ul className="list-disc pl-4 text-neutral-800">
                                     {customSection.honors.map((honor) => (
-                                        <li key={honor.id} className="mb-0.5">
+                                        <li key={honor.id} className="mb-1">
                                             <span className="font-bold text-black">{honor.title}</span>
                                             {honor.issuer && <span className="text-neutral-600"> | {honor.issuer}</span>}
                                             {honor.date && <span className="text-neutral-600"> | {honor.date}</span>}
+                                            {honor.description && (
+                                                <div className="mt-0.5 ml-0 text-neutral-700">
+                                                    {formatDescription(honor.description)}
+                                                </div>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>
@@ -231,7 +238,7 @@ export const ResumePreview = () => {
         <div className="relative">
             <div
                 ref={containerRef}
-                className="resume-preview bg-white text-neutral-900 mx-auto transition-all duration-500 ease-in-out"
+                className="resume-preview bg-white text-neutral-900 mx-auto shadow-lg relative"
                 style={{
                     ...smartFitResult.styles,
                     fontFamily: 'var(--font-family-resume)',
@@ -239,13 +246,12 @@ export const ResumePreview = () => {
                     lineHeight: 'var(--line-height-body)',
                     letterSpacing: 'var(--letter-spacing)',
                     padding: 'var(--margin-y) var(--margin-x)',
-                    // A4 dimensions - minHeight allows multi-page, CSS handles page breaks
                     width: '210mm',
                     minHeight: '297mm',
                     boxSizing: 'border-box',
                 }}
             >
-                {/* Header - No border underline as per user request */}
+                {/* Header */}
                 <header className="text-center mb-5 pb-3">
                     <h1
                         className="font-bold tracking-tight mb-1.5 leading-none"
@@ -262,9 +268,62 @@ export const ResumePreview = () => {
                     </div>
                 </header>
 
-                {/* Render sections based on sectionOrder */}
+                {/* Render sections */}
                 {sectionOrder.map(sectionKey => renderSection(sectionKey))}
             </div>
+
+            {/* Page break indicators overlay */}
+            <PageBreakOverlay containerRef={containerRef} />
         </div>
+    );
+};
+
+// Component to show page break overlays
+const PageBreakOverlay = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) => {
+    const [pageCount, setPageCount] = useState(1);
+
+    useEffect(() => {
+        const checkHeight = () => {
+            if (containerRef.current) {
+                const height = containerRef.current.scrollHeight;
+                const pageHeight = 297 * 3.7795275591; // 297mm in pixels
+                setPageCount(Math.max(1, Math.ceil(height / pageHeight)));
+            }
+        };
+
+        checkHeight();
+        const timeout = setTimeout(checkHeight, 200);
+        const observer = new ResizeObserver(checkHeight);
+        if (containerRef.current) {
+            observer.observe(containerRef.current);
+        }
+        return () => {
+            clearTimeout(timeout);
+            observer.disconnect();
+        };
+    }, [containerRef]);
+
+    if (pageCount <= 1) return null;
+
+    return (
+        <>
+            {Array.from({ length: pageCount - 1 }, (_, i) => (
+                <div
+                    key={i}
+                    className="absolute left-0 right-0 pointer-events-none"
+                    style={{
+                        top: `calc(${(i + 1) * 297}mm)`,
+                    }}
+                >
+                    {/* Page break visual separator */}
+                    <div className="relative h-8 bg-neutral-100 border-y border-neutral-300 flex items-center justify-center -mt-4">
+                        <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-neutral-400" />
+                        <span className="relative bg-neutral-100 px-4 text-xs text-neutral-500 font-medium tracking-wider uppercase">
+                            第 {i + 2} 页
+                        </span>
+                    </div>
+                </div>
+            ))}
+        </>
     );
 };

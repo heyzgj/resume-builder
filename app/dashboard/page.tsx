@@ -59,7 +59,7 @@ const TEMPLATES: Template[] = [
                     location: "上海",
                     startDate: "2023.06",
                     endDate: "至今",
-                    description: "<ul><li>参与执行累计规模超50亿元的A股IPO项目，负责搭建估值模型</li><li>独立完成3个并购交易的尽职调查报告</li><li>制作投资者路演材料和管理层访谈纪要</li></ul>",
+                    description: "<ul><li><p>参与执行累计规模超50亿元的A股IPO项目，负责搭建估值模型</p></li><li><p>独立完成3个并购交易的尽职调查报告</p></li><li><p>制作投资者路演材料和管理层访谈纪要</p></li></ul>",
                     visible: true
                 }
             ],
@@ -106,7 +106,7 @@ const TEMPLATES: Template[] = [
                     location: "New York, NY",
                     startDate: "Jul 2023",
                     endDate: "Present",
-                    description: "<ul><li>Advised on $500M+ M&A transactions across TMT and Healthcare sectors</li><li>Built complex financial models (DCF, LBO, Merger Models)</li><li>Prepared investor presentations and management decks</li></ul>",
+                    description: "<ul><li><p>Advised on $500M+ M&A transactions across TMT and Healthcare sectors</p></li><li><p>Built complex financial models (DCF, LBO, Merger Models)</p></li><li><p>Prepared investor presentations and management decks</p></li></ul>",
                     visible: true
                 }
             ],

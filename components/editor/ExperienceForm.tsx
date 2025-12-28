@@ -3,7 +3,7 @@
 import { useResumeStore } from "@/lib/store";
 import { Input } from "@/components/ui/Input";
 import { SectionWrapper } from "./SectionWrapper";
-import { BulletEditor } from "./BulletEditor";
+import { RichTextEditor } from "./RichTextEditor";
 import { ExperienceItem } from "@/lib/types";
 import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -112,10 +112,10 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                                 </div>
                             </div>
 
-                            <BulletEditor
+                            <RichTextEditor
                                 value={item.description}
                                 onChange={(newValue) => handleChange(item.id, "description", newValue)}
-                                placeholder="参与执行累计规模超50亿元的IPO项目\n独立完成3个并购交易的尽职调查报告\n制作投资者路演材料，支持项目顺利推进"
+                                placeholder="描述你的工作职责和成就..."
                             />
                         </motion.div>
                     ))}

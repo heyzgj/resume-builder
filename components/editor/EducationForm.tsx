@@ -4,6 +4,7 @@ import { useResumeStore } from "@/lib/store";
 import { Input } from "@/components/ui/Input";
 import { SectionWrapper } from "./SectionWrapper";
 import { EducationItem } from "@/lib/types";
+import { RichTextEditor } from "./RichTextEditor";
 import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -112,6 +113,18 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                                     value={item.gpa || ""}
                                     onChange={(e) => handleChange(item.id, "gpa", e.target.value)}
                                     placeholder="如：GPA 3.8/4.0，专业前5%"
+                                />
+                            </div>
+
+                            {/* Description (optional) */}
+                            <div className="mt-4">
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2">
+                                    相关课程 / 活动（可选）
+                                </label>
+                                <RichTextEditor
+                                    value={item.description || ""}
+                                    onChange={(newValue) => handleChange(item.id, "description", newValue)}
+                                    placeholder="相关课程、学术活动、社团经历等..."
                                 />
                             </div>
                         </motion.div>

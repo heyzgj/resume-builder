@@ -73,7 +73,7 @@ const initialDataEN: ResumeData = {
             location: "New York, NY",
             startDate: "Jun 2023",
             endDate: "Present",
-            description: "<ul><li>Advised on $500M+ M&A transactions across TMT and Healthcare sectors, executing comprehensive valuation analyses.</li><li>Built complex financial models (DCF, LBO, Merger Model) to support strategic recommendations for Fortune 500 clients.</li><li>Prepared investor presentations and management decks for capital markets transactions totaling $1.2B.</li></ul>",
+            description: "<ul><li><p>Advised on $500M+ M&A transactions across TMT and Healthcare sectors, executing comprehensive valuation analyses.</p></li><li><p>Built complex financial models (DCF, LBO, Merger Model) to support strategic recommendations for Fortune 500 clients.</p></li><li><p>Prepared investor presentations and management decks for capital markets transactions totaling $1.2B.</p></li></ul>",
             visible: true
         }
     ],
@@ -129,7 +129,7 @@ const initialDataZH: ResumeData = {
             location: "上海",
             startDate: "2023.06",
             endDate: "至今",
-            description: "<ul><li>参与执行累计规模超50亿元的A股IPO项目，负责搭建估值模型，完成行业可比公司分析</li><li>独立完成3个并购交易的尽职调查报告，协助项目组识别关键风险点并提出解决方案</li><li>制作投资者路演材料和管理层访谈纪要，支持项目顺利推进</li></ul>",
+            description: "<ul><li><p>参与执行累计规模超50亿元的A股IPO项目，负责搭建估值模型，完成行业可比公司分析</p></li><li><p>独立完成3个并购交易的尽职调查报告，协助项目组识别关键风险点并提出解决方案</p></li><li><p>制作投资者路演材料和管理层访谈纪要，支持项目顺利推进</p></li></ul>",
             visible: true
         }
     ],
@@ -350,7 +350,8 @@ export const useResumeStore = create<ResumeState>()(
                 set((state) => ({
                     data: {
                         ...state.data,
-                        experience: []
+                        experience: [],
+                        sectionOrder: (state.data.sectionOrder || ['experience', 'education', 'skills']).filter(s => s !== 'experience')
                     }
                 })),
 
@@ -358,7 +359,8 @@ export const useResumeStore = create<ResumeState>()(
                 set((state) => ({
                     data: {
                         ...state.data,
-                        education: []
+                        education: [],
+                        sectionOrder: (state.data.sectionOrder || ['experience', 'education', 'skills']).filter(s => s !== 'education')
                     }
                 })),
 
@@ -366,7 +368,8 @@ export const useResumeStore = create<ResumeState>()(
                 set((state) => ({
                     data: {
                         ...state.data,
-                        skills: []
+                        skills: [],
+                        sectionOrder: (state.data.sectionOrder || ['experience', 'education', 'skills']).filter(s => s !== 'skills')
                     }
                 })),
 

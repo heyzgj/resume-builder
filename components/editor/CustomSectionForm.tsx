@@ -3,7 +3,7 @@
 import { useResumeStore } from "@/lib/store";
 import { Input } from "@/components/ui/Input";
 import { SectionWrapper } from "./SectionWrapper";
-import { BulletEditor } from "./BulletEditor";
+import { RichTextEditor } from "./RichTextEditor";
 import { ExperienceItem, HonorItem } from "@/lib/types";
 import { Trash2, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -96,6 +96,14 @@ export const CustomSectionForm: React.FC<CustomSectionFormProps> = ({
                                             placeholder="如：2023.12"
                                         />
                                     </div>
+                                    {/* Optional description */}
+                                    <div className="mt-3">
+                                        <RichTextEditor
+                                            value={honor.description || ""}
+                                            onChange={(val) => updateCustomSectionHonor(sectionId, { ...honor, description: val })}
+                                            placeholder="描述奖项详情（可选）..."
+                                        />
+                                    </div>
                                 </motion.div>
                             ))}
                         </AnimatePresence>
@@ -157,10 +165,10 @@ export const CustomSectionForm: React.FC<CustomSectionFormProps> = ({
                                             placeholder="如：2024.01 或 至今"
                                         />
                                     </div>
-                                    <BulletEditor
+                                    <RichTextEditor
                                         value={item.description}
                                         onChange={(val) => updateCustomSectionItem(sectionId, { ...item, description: val })}
-                                        placeholder="描述你的工作内容和成果，每行一个要点"
+                                        placeholder="描述你的工作内容和成果..."
                                     />
                                 </motion.div>
                             ))}
