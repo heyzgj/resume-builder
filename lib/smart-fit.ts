@@ -43,7 +43,7 @@ export const FORMAT_PRESETS = {
         fontSize: '10.5pt',
         lineHeight: 1.15,
         marginX: '0.8in',
-        marginY: '0.6in',
+        marginY: '0.8in', // FIXED: Match PDF margin
         nameSize: '16pt',
         sectionTitleSize: '11pt',
         letterSpacing: 'normal',
@@ -57,7 +57,7 @@ export const FORMAT_PRESETS = {
         fontSize: '10.5pt', // 五号字
         lineHeight: 1.3,
         marginX: '2cm',
-        marginY: '1.5cm',
+        marginY: '2cm', // FIXED: Match PDF margin
         nameSize: '18pt',
         sectionTitleSize: '11pt',
         letterSpacing: '-0.02em', // Slightly tighter for Chinese
